@@ -209,6 +209,18 @@ Reveal opens the system file manager for a path Leaf already knows. It does not 
 macOS selects the target in Finder. Linux opens the folder or the parent of a file.
 Missing or unknown paths return an error. Open a document or add its folder before revealing it.
 
+## Human editing controls
+
+Press `e` or select **Edit** to edit a local document. Select **Split** for a live Markdown preview.
+Press `⌘S` on macOS or `Ctrl+S` on Linux to save. The tab dot and save bar show unsaved changes.
+The **History** panel lists observed versions. Select one to inspect its changes; hover over an older version for **Restore**.
+Restore writes that version to disk as a new history entry. It does not erase later snapshots.
+
+A disk-change banner appears when another tool edits a dirty document. Save merges changes that affect different lines.
+Overlapping changes show choices inside the editor. Keep either side or both, review the result, then save.
+The editor also recognizes conflict markers from `leaf merge`. Saving remains disabled until those markers are resolved.
+Unsaved drafts remain in the current browser session; save them before leaving or restarting the browser.
+
 ## Edit with document history
 
 Leaf records observed versions in a private SQLite database under `history/versions.sqlite3` in its state directory.

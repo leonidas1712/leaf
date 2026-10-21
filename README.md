@@ -151,6 +151,13 @@ board's name unless you pass `--group`. Unpinned files update on explicit refres
 
 ## Document editing and history
 
+Open a local document and press `e` to edit it. Choose **Split** to see a live Markdown preview beside your text.
+Press `⌘S` on macOS (`Ctrl+S` on Linux) to save. An unsaved dot marks tabs with pending edits.
+Use **History** in the side panel to inspect versions and compare changes. Hover over an older version to restore it.
+
+If another tool edits the file, Leaf merges separate changes when you save. Overlapping changes show choices beside the affected lines.
+Choose which text to keep, review the result, then save. Resolve all conflict markers before saving.
+
 Leaf keeps observed document versions locally. Agents can use their usual file tools and sign changes:
 
 ```sh

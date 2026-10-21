@@ -35,7 +35,7 @@ For visual correctness, inspect the user's browser after the command. Do not cla
 
 Use `leaf heading HEADING --session ID --json` when targeting one live reader.
 Do not expose the private connection token or commit runtime state, document contents, or screenshots.
-Leaf reads documents; it does not modify, move, or delete source documents.
+Explicit editing commands can modify known local documents. Collection and tab actions never move or delete source files.
 
 Groups require unique names. Closing saves member tabs; removing a group closes tabs without deleting documents.
 Read API.md in the source checkout before changing synchronization or group behavior.
