@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import type { Collection, GroupColor, Workspace } from '@/lib/api'
 import { childrenOf, colorOf, documentCount, trail, within } from '@/lib/collections'
 import {
+  acceptDrop,
   carriesCollection,
   carriesPath,
   draggedCollection,
@@ -35,15 +36,17 @@ const key = (id: string) => 'collection:' + id
 /** Shared drop handling: documents join the collection; collections nest inside it. */
 function useDropTarget(onPath: (path: string) => void, onCollection?: (id: string) => void) {
   const [over, setOver] = useState(false)
+  const onEnterOrOver = (event: React.DragEvent) => {
+    if (!carriesPath(event) && !(onCollection && carriesCollection(event))) return
+    acceptDrop(event)
+    event.stopPropagation()
+    setOver(true)
+  }
   return {
     over,
     handlers: {
-      onDragOver: (event: React.DragEvent) => {
-        if (!carriesPath(event) && !(onCollection && carriesCollection(event))) return
-        event.preventDefault()
-        event.stopPropagation()
-        setOver(true)
-      },
+      onDragEnter: onEnterOrOver,
+      onDragOver: onEnterOrOver,
       onDragLeave: () => setOver(false),
       onDrop: (event: React.DragEvent) => {
         event.preventDefault()

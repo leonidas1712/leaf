@@ -26,6 +26,16 @@ export function draggedFromTab(event: React.DragEvent) {
   return event.dataTransfer.types.includes(TAB_TYPE)
 }
 
+/**
+ * Mark the element under the pointer as a valid drop target. Call it from both dragenter and
+ * dragover: a quick drag can release before any dragover reaches the target, and Chrome only
+ * fires drop where the last enter or over event was cancelled.
+ */
+export function acceptDrop(event: React.DragEvent) {
+  event.preventDefault()
+  event.dataTransfer.dropEffect = event.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy'
+}
+
 /* Collections drag separately so they can only be dropped where nesting makes sense. */
 export const COLLECTION_TYPE = 'application/x-leaf-collection'
 

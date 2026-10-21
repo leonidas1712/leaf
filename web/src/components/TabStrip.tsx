@@ -20,7 +20,7 @@ import { actions, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { GroupMenuItems, groupStyle } from './groups'
 import { ReaderSettings } from './ReaderSettings'
-import { carriesPath, draggedFromTab, draggedPath, startDrag } from '@/lib/dnd'
+import { acceptDrop, carriesPath, draggedFromTab, draggedPath, startDrag } from '@/lib/dnd'
 
 export function TabStrip() {
   const workspace = useLeaf((s) => s.workspace)
@@ -42,6 +42,13 @@ export function TabStrip() {
 
   const groups = workspace?.groups ?? []
   const groupOf = (id?: string | null) => (id ? groups.find((g) => g.id === id) : undefined)
+
+  /** Accept a Leaf document drag on enter and over; `key` names the highlighted target. */
+  const acceptAs = (event: React.DragEvent, key?: string) => {
+    if (!carriesPath(event)) return
+    acceptDrop(event)
+    if (key) setDropTarget(key)
+  }
 
   // Dropping on a tab takes its slot and joins its group, as in Chrome. A document dragged
   // from the sidebar opens beside it, inside the same group.
@@ -95,11 +102,8 @@ export function TabStrip() {
         onWheel={(event) => {
           if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) strip.current!.scrollLeft += event.deltaY
         }}
-        onDragOver={(event) => {
-          if (!carriesPath(event)) return
-          event.preventDefault()
-          if (event.target === event.currentTarget) setDropTarget('strip')
-        }}
+        onDragEnter={(event) => acceptAs(event, event.target === event.currentTarget ? 'strip' : undefined)}
+        onDragOver={(event) => acceptAs(event, event.target === event.currentTarget ? 'strip' : undefined)}
         onDragLeave={(event) => event.target === event.currentTarget && setDropTarget(null)}
         onDrop={(event) => {
           // Empty strip: open an outside document as a new ungrouped tab, or move a tab to the end.
@@ -132,11 +136,8 @@ export function TabStrip() {
                       aria-expanded={!group.collapsed}
                       title={`${group.name} · ${members.length} tabs`}
                       onClick={() => actions.groupUpdate(group, { collapsed: !group.collapsed })}
-                      onDragOver={(event) => {
-                        if (!carriesPath(event)) return
-                        event.preventDefault()
-                        setDropTarget('group:' + group.id)
-                      }}
+                      onDragEnter={(event) => acceptAs(event, 'group:' + group.id)}
+                      onDragOver={(event) => acceptAs(event, 'group:' + group.id)}
                       onDragLeave={() => setDropTarget(null)}
                       onDrop={(event) => {
                         event.preventDefault()
@@ -174,11 +175,8 @@ export function TabStrip() {
                         setDragging(null)
                         setDropTarget(null)
                       }}
-                      onDragOver={(event) => {
-                        if (!carriesPath(event)) return
-                        event.preventDefault()
-                        setDropTarget(tab.path)
-                      }}
+                      onDragEnter={(event) => acceptAs(event, tab.path)}
+                      onDragOver={(event) => acceptAs(event, tab.path)}
                       onDrop={(event) => {
                         event.preventDefault()
                         dropOnTab(event, tab.path)

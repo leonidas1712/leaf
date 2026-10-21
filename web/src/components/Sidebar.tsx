@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils'
 import { CollectionsSection } from './collections'
 import { GroupMenuItems, groupStyle } from './groups'
 import { LeafMark } from './LeafMark'
-import { carriesPath, draggedPath, startDrag } from '@/lib/dnd'
+import { acceptDrop, carriesPath, draggedPath, startDrag } from '@/lib/dnd'
 
 /** Projects first: each group with its tab count; closed groups wait, dimmed, to be reopened. */
 function GroupRow({ group, workspace }: { group: TabGroup; workspace: Workspace }) {
@@ -45,6 +45,11 @@ function GroupRow({ group, workspace }: { group: TabGroup; workspace: Workspace 
       if (members[0] && !containsActive) actions.focus(members[0].path)
     }
   }
+  const acceptPath = (event: React.DragEvent) => {
+    if (!carriesPath(event)) return
+    acceptDrop(event)
+    setOver(true)
+  }
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -53,11 +58,8 @@ function GroupRow({ group, workspace }: { group: TabGroup; workspace: Workspace 
           style={groupStyle(group.color)}
           onClick={open}
           title={group.closed ? `Reopen ${count} tabs` : `${count} open tabs · drop documents here to add them`}
-          onDragOver={(event) => {
-            if (!carriesPath(event)) return
-            event.preventDefault()
-            setOver(true)
-          }}
+          onDragEnter={acceptPath}
+          onDragOver={acceptPath}
           onDragLeave={() => setOver(false)}
           onDrop={(event) => {
             event.preventDefault()
