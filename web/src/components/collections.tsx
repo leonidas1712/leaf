@@ -3,6 +3,7 @@
  * accept drags from every other list, and open as a tab group. Nothing on disk ever moves.
  */
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { ChevronRight, FileText, FolderPlus, Library, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -104,7 +105,9 @@ function CollectionNode({ collection, depth, workspace }: { collection: Collecti
   const children = childrenOf(all, collection.id)
   const { over, handlers } = useDropTarget(
     (path) => {
-      if (!collection.docs.includes(path)) actions.collectionAdd(collection, [path])
+      // Confirm every drop: a silent no-op reads as a broken drag.
+      if (collection.docs.includes(path)) toast(`${basename(path)} is already in ${collection.name}`)
+      else actions.collectionAdd(collection, [path]).then((error) => !error && toast.success(`Added ${basename(path)} to ${collection.name}`))
       toggleExpanded(key(collection.id), true)
     },
     (id) => {
