@@ -57,7 +57,7 @@ export function SidePanel({
 
   return (
     <aside aria-label="Document side panel" className="print-hide w-72 shrink-0 max-[1000px]:hidden">
-      <div className="sticky top-0 z-20 -mx-2 flex items-center gap-1 bg-paper/95 px-2 pt-3 pb-3 backdrop-blur-sm">
+      <div className="sticky top-0 z-20 -mx-2 flex flex-wrap items-center gap-1 bg-paper/95 px-2 pt-3 pb-3 backdrop-blur-sm">
         <ToggleGroup
           type="single"
           value={mode}
@@ -82,13 +82,6 @@ export function SidePanel({
             {iconButton('Comment on the whole document', <MessageSquarePlus className="size-4" />, () =>
               setState({ draft: { path, anchor: null }, activeComment: 'draft' }),
             )}
-            {resolved > 0 &&
-              iconButton(
-                showResolved ? `Hide ${resolved} resolved` : `Show ${resolved} resolved`,
-                <CheckCheck className="size-4" />,
-                () => setShowResolved((v) => !v),
-                showResolved,
-              )}
             {iconButton(copied ? 'Copied: paste it to your agent' : 'Copy prompt for an agent', copied ? <Check className="size-4 text-leaf" /> : <Bot className="size-4" />, () =>
               navigator.clipboard.writeText(agentPrompt(path)).then(() => {
                 setCopied(true)
@@ -96,6 +89,22 @@ export function SidePanel({
               }),
             )}
           </div>
+        )}
+        {mode === 'comments' && resolved > 0 && (
+          // Labelled rather than an icon: resolved threads are otherwise easy to lose track of.
+          <button
+            type="button"
+            aria-pressed={showResolved}
+            onClick={() => setShowResolved((v) => !v)}
+            className={cn(
+              'mt-2 flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-accent',
+              showResolved ? 'text-ink' : 'text-ink-muted',
+            )}
+          >
+            <CheckCheck className="size-3.5 text-leaf" />
+            {resolved} resolved
+            <span className="ml-auto font-medium text-leaf-ink">{showResolved ? 'Hide' : 'Show'}</span>
+          </button>
         )}
       </div>
       {mode === 'outline' ? (
