@@ -1,0 +1,563 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Leaf tokens. Two neutral layers tinted toward leaf green: the chrome (rail, tab strip)
+ * sits a step below the reading paper so the document always reads as the brightest plane.
+ * Group colours follow Chrome's tab-group set so they map 1:1 to the mental model.
+ */
+:root {
+  --radius: 0.5rem;
+  --paper: oklch(0.993 0.002 150);
+  --chrome: oklch(0.962 0.005 150);
+  --chrome-raised: oklch(0.982 0.003 150);
+  --ink: oklch(0.235 0.014 160);
+  --ink-soft: oklch(0.36 0.012 160);
+  --ink-muted: oklch(0.505 0.012 160);
+  --ink-faint: oklch(0.64 0.01 160);
+  --rule: oklch(0.905 0.006 150);
+  --rule-strong: oklch(0.85 0.008 150);
+  --leaf: oklch(0.5 0.105 152);
+  --leaf-soft: oklch(0.93 0.035 152);
+  --leaf-ink: oklch(0.42 0.095 152);
+  --code-bg: oklch(0.965 0.004 150);
+  --selection: oklch(0.88 0.06 152);
+  --shadow: 0 1px 2px oklch(0.2 0.02 160 / 0.06), 0 8px 24px -8px oklch(0.2 0.02 160 / 0.12);
+
+  --g-grey: oklch(0.55 0.01 250);
+  --g-blue: oklch(0.55 0.15 255);
+  --g-red: oklch(0.56 0.18 25);
+  --g-yellow: oklch(0.68 0.14 80);
+  --g-green: oklch(0.56 0.13 150);
+  --g-pink: oklch(0.6 0.17 350);
+  --g-purple: oklch(0.55 0.17 300);
+  --g-cyan: oklch(0.6 0.1 210);
+  --g-orange: oklch(0.65 0.15 55);
+
+  /* shadcn contract */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--chrome-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--leaf);
+  --primary-foreground: oklch(0.99 0.004 150);
+  --secondary: var(--chrome);
+  --secondary-foreground: var(--ink);
+  --muted: var(--chrome);
+  --muted-foreground: var(--ink-muted);
+  --accent: oklch(0.925 0.008 150);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.56 0.19 27);
+  --border: var(--rule);
+  --input: var(--rule-strong);
+  --ring: var(--leaf);
+}
+
+.dark {
+  --paper: oklch(0.195 0.008 165);
+  --chrome: oklch(0.163 0.007 165);
+  --chrome-raised: oklch(0.235 0.009 165);
+  --ink: oklch(0.925 0.008 150);
+  --ink-soft: oklch(0.83 0.01 150);
+  --ink-muted: oklch(0.69 0.012 155);
+  --ink-faint: oklch(0.55 0.01 155);
+  --rule: oklch(0.275 0.009 165);
+  --rule-strong: oklch(0.34 0.01 165);
+  --leaf: oklch(0.79 0.11 150);
+  --leaf-soft: oklch(0.32 0.05 152);
+  --leaf-ink: oklch(0.84 0.1 150);
+  --code-bg: oklch(0.225 0.009 165);
+  --selection: oklch(0.4 0.07 152);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px -8px oklch(0 0 0 / 0.5);
+
+  --g-grey: oklch(0.72 0.01 250);
+  --g-blue: oklch(0.74 0.12 255);
+  --g-red: oklch(0.72 0.14 25);
+  --g-yellow: oklch(0.83 0.13 85);
+  --g-green: oklch(0.76 0.13 150);
+  --g-pink: oklch(0.76 0.13 350);
+  --g-purple: oklch(0.74 0.13 300);
+  --g-cyan: oklch(0.79 0.1 210);
+  --g-orange: oklch(0.78 0.13 55);
+
+  --primary-foreground: oklch(0.18 0.02 160);
+  --accent: oklch(0.265 0.01 165);
+  --destructive: oklch(0.68 0.17 25);
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --color-paper: var(--paper);
+  --color-chrome: var(--chrome);
+  --color-chrome-raised: var(--chrome-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-leaf: var(--leaf);
+  --color-leaf-soft: var(--leaf-soft);
+  --color-leaf-ink: var(--leaf-ink);
+  --color-code: var(--code-bg);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-float: var(--shadow);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-chrome text-ink font-sans antialiased;
+    font-size: 14px;
+    overflow: hidden;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern", "liga", "calt";
+  }
+  ::selection {
+    background: var(--selection);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--leaf);
+    outline-offset: 2px;
+  }
+  /* Thin, palette-tinted scrollbars on every scroller. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- Reading column */
+
+.prose-leaf {
+  --measure: 72ch;
+  --body-size: 16px;
+  color: var(--ink-soft);
+  font-size: var(--body-size);
+  line-height: 1.72;
+  max-width: var(--measure);
+  overflow-wrap: break-word;
+  hanging-punctuation: first;
+}
+.prose-leaf[data-font="serif"] {
+  font-family: var(--font-serif);
+  line-height: 1.68;
+}
+.prose-leaf > :first-child {
+  margin-top: 0;
+}
+.prose-leaf :where(p, ul, ol, blockquote, pre, table, figure, .diagram, .callout) {
+  margin: 0 0 1.15em;
+}
+.prose-leaf :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 650;
+  line-height: 1.25;
+  text-wrap: balance;
+  scroll-margin-top: 28px;
+}
+.prose-leaf h1 {
+  font-size: 2.05em;
+  letter-spacing: -0.022em;
+  font-weight: 700;
+  margin: 0 0 0.75em;
+}
+.prose-leaf h2 {
+  font-size: 1.42em;
+  letter-spacing: -0.015em;
+  margin: 2.1em 0 0.6em;
+  padding-top: 0.9em;
+  border-top: 1px solid var(--rule);
+}
+.prose-leaf h1 + h2 {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0.4em;
+}
+.prose-leaf h3 {
+  font-size: 1.16em;
+  letter-spacing: -0.008em;
+  margin: 1.8em 0 0.5em;
+}
+.prose-leaf h4 {
+  font-size: 1em;
+  margin: 1.6em 0 0.4em;
+}
+.prose-leaf :where(h5, h6) {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin: 1.6em 0 0.4em;
+}
+.prose-leaf strong {
+  color: var(--ink);
+  font-weight: 640;
+}
+.prose-leaf a {
+  color: var(--leaf-ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--leaf) 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 150ms;
+}
+.prose-leaf a:hover {
+  text-decoration-color: var(--leaf);
+}
+.prose-leaf :where(ul, ol) {
+  padding-left: 1.4em;
+}
+.prose-leaf ul {
+  list-style: disc;
+}
+.prose-leaf ol {
+  list-style: decimal;
+}
+.prose-leaf li {
+  margin: 0.3em 0;
+  padding-left: 0.2em;
+}
+.prose-leaf li::marker {
+  color: var(--ink-faint);
+}
+.prose-leaf li > :where(ul, ol) {
+  margin: 0.3em 0 0.4em;
+}
+.prose-leaf li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.3em;
+}
+.prose-leaf input[type="checkbox"] {
+  accent-color: var(--leaf);
+  margin-right: 0.55em;
+  translate: 0 0.1em;
+}
+.prose-leaf blockquote {
+  color: var(--ink-muted);
+  padding: 0.1em 0 0.1em 1.1em;
+  border-left: 1px solid var(--rule-strong);
+}
+.prose-leaf hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 2.4em 0;
+}
+.prose-leaf :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  padding: 0.08em 0.36em;
+  border-radius: 5px;
+  color: var(--ink);
+}
+.prose-leaf[data-source] pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.prose-leaf pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  color: var(--ink);
+  tab-size: 2;
+}
+.prose-leaf table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+}
+.prose-leaf :where(th, td) {
+  padding: 0.55em 1em;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.prose-leaf :where(th, td):not([align]) {
+  text-align: left;
+}
+.prose-leaf th {
+  color: var(--ink);
+  font-weight: 620;
+  border-bottom-color: var(--rule-strong);
+  white-space: nowrap;
+}
+.prose-leaf tr:last-child td {
+  border-bottom: 0;
+}
+.prose-leaf img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.prose-leaf img:not([src]) {
+  display: inline-block;
+  padding: 0.3em 0.6em;
+  border: 1px dashed var(--rule-strong);
+  border-radius: 6px;
+  font-size: 0.85em;
+  color: var(--ink-muted);
+}
+.prose-leaf .heading-anchor {
+  opacity: 0;
+  margin-left: 0.35em;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: opacity 120ms;
+}
+.prose-leaf :is(h1, h2, h3, h4):hover .heading-anchor {
+  opacity: 1;
+}
+.prose-leaf .heading-flash {
+  animation: heading-flash 1.4s var(--ease-out-expo);
+}
+@keyframes heading-flash {
+  from {
+    background: var(--leaf-soft);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* GitHub-style alerts: > [!NOTE] etc. Tinted ground, no thick side bar. */
+.prose-leaf .callout {
+  --c: var(--g-blue);
+  border-radius: 10px;
+  padding: 0.85em 1.1em;
+  background: color-mix(in oklch, var(--c) 9%, var(--paper));
+  border: 1px solid color-mix(in oklch, var(--c) 28%, var(--paper));
+  color: var(--ink-soft);
+}
+.prose-leaf .callout > :last-child {
+  margin-bottom: 0;
+}
+.prose-leaf .callout-title {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.78em;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--c) 80%, var(--ink));
+  margin-bottom: 0.3em;
+}
+.prose-leaf .callout[data-kind="tip"] {
+  --c: var(--g-green);
+}
+.prose-leaf .callout[data-kind="important"] {
+  --c: var(--g-purple);
+}
+.prose-leaf .callout[data-kind="warning"] {
+  --c: var(--g-yellow);
+}
+
+/* Code blocks: language label at rest, copy on hover or focus. */
+.prose-leaf .code-block {
+  position: relative;
+  margin: 0 0 1.15em;
+}
+.prose-leaf .code-block > pre {
+  margin: 0;
+}
+.prose-leaf .code-bar {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+.prose-leaf .code-language {
+  color: var(--ink-faint);
+  padding: 2px 4px;
+  transition: opacity 120ms;
+}
+.prose-leaf .code-copy {
+  color: var(--ink-muted);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms, color 120ms;
+}
+.prose-leaf .code-copy:hover {
+  color: var(--ink);
+}
+.prose-leaf .code-block:hover .code-copy,
+.prose-leaf .code-copy:focus-visible {
+  opacity: 1;
+}
+.prose-leaf .code-block:hover .code-language {
+  opacity: 0;
+}
+
+/* YAML front matter as a properties block. */
+.prose-leaf .front-matter {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25em 1.4em;
+  font-family: var(--font-sans);
+  font-size: 0.8em;
+  padding: 0.8em 1em;
+  margin: 0 0 2em;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--chrome-raised);
+}
+.prose-leaf .front-matter dt {
+  color: var(--ink-faint);
+}
+.prose-leaf .front-matter dd {
+  margin: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* Links that leave Leaf get a small outbound arrow. */
+.prose-leaf a[href^="http"]::after {
+  content: "";
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-left: 0.18em;
+  background: currentColor;
+  opacity: 0.55;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M4 2h6v6M10 2 2.5 9.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.prose-leaf .callout[data-kind="caution"] {
+  --c: var(--g-red);
+}
+
+/* Syntax colours from the palette, not a borrowed theme. */
+.hljs-comment,
+.hljs-quote {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-doctag {
+  color: var(--g-purple);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute {
+  color: var(--g-green);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--g-orange);
+}
+.hljs-title,
+.hljs-section,
+.hljs-title.function_ {
+  color: var(--g-blue);
+}
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-variable.language_ {
+  color: var(--g-cyan);
+}
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+  color: var(--g-red);
+}
+.hljs-meta,
+.hljs-deletion {
+  color: var(--g-pink);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 650;
+}
+
+@media print {
+  body {
+    overflow: visible;
+    background: white;
+  }
+  .print-hide {
+    display: none !important;
+  }
+  .print-flow {
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+  }
+  .prose-leaf {
+    max-width: none;
+    color: black;
+  }
+  .prose-leaf pre {
+    white-space: pre-wrap;
+  }
+  .prose-leaf h2 {
+    break-after: avoid;
+  }
+}
