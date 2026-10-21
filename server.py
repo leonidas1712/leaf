@@ -10,7 +10,7 @@ import threading
 import time
 import webbrowser
 import fcntl
-from workspace import Workspace
+from workspace import Workspace, TEXT_EXTENSIONS
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -57,6 +57,35 @@ def scan_folder(path):
     return entries
 
 
+def complete_paths(prefix):
+    """List up to fifty safe document/directory suggestions without granting or opening files."""
+    expanded = os.path.expanduser(prefix)
+    if not expanded.startswith('/'):
+        raise ValueError('Completion requires an absolute path or ~/ prefix.')
+    candidate = Path(expanded)
+    if candidate.is_dir() and not candidate.is_symlink():
+        directory, fragment = candidate, ''
+    else:
+        directory = candidate.parent
+        fragment = candidate.name
+        while not directory.is_dir() and directory != directory.parent:
+            fragment = directory.name
+            directory = directory.parent
+    if directory.is_symlink() or any(part.startswith('.') or part in SKIP for part in directory.parts[1:]):
+        return []
+    results = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if entry.name.startswith('.') or entry.name in SKIP or not entry.name.casefold().startswith(fragment.casefold()) or entry.is_symlink():
+                continue
+            is_directory = entry.is_dir(follow_symlinks=False)
+            if is_directory or (entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in TEXT_EXTENSIONS):
+                results.append({'path': str(Path(entry.path).resolve()), 'kind': 'dir' if is_directory else 'file'})
+            if len(results) == 50:
+                break
+    return sorted(results, key=lambda item: (item['kind'] != 'dir', item['path'].casefold()))
+
+
 def hydrate_workspace():
     """Rebuild transient file grants from saved paths; keep missing tabs recoverable."""
     entries = {}
@@ -69,6 +98,7 @@ def hydrate_workspace():
         except (ValueError, OSError) as error:
             missing.append({'path': folder, 'error': str(error)})
     paths = WORKSPACE.data['files'] + [tab['path'] for tab in WORKSPACE.data['tabs']]
+    paths += [path for collection in WORKSPACE.data['collections'] for path in collection['docs']]
     for path in paths:
         if path in entries:
             continue
@@ -141,6 +171,8 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == '/api/status':
                 with LOCK:
                     self.respond({'app': 'leaf', 'version': 2, 'pid': os.getpid(), 'url': f'http://127.0.0.1:{self.server.server_port}', 'workspace': WORKSPACE.data, 'readers': live_sessions()})
+            elif url.path == '/api/complete':
+                self.respond(complete_paths(query.get('path', [''])[0]))
             elif url.path == '/api/workspace':
                 with LOCK:
                     self.respond(hydrate_workspace())

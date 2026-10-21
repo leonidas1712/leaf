@@ -83,6 +83,60 @@ class BridgeTests(unittest.TestCase):
                 path.unlink()
                 self.assertIsNone(server.document_stamps()[str(path)])
 
+    def test_path_completion_is_bounded_authenticated_and_grant_free(self):
+        """Suggest supported local entries while excluding hidden files, dependencies, and symlinks."""
+        from urllib.parse import quote
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            for name in ('notes.md', 'other.md', 'photo.png', '.hidden.md'):
+                (root / name).write_text('test')
+            (root / 'node_modules').mkdir()
+            (root / 'nested').mkdir()
+            (root / 'link.md').symlink_to(root / 'notes.md')
+            endpoint = '/api/complete?path=' + quote(str(root) + '/')
+            self.assertEqual(self.request(endpoint)[0], 403)
+            grants = dict(server.FILES)
+            code, body = self.request(endpoint, headers={'X-Leaf-Token': server.TOKEN})
+            self.assertEqual(code, 200)
+            self.assertEqual({Path(item['path']).name for item in json.loads(body)}, {'notes.md', 'other.md', 'nested'})
+            self.assertEqual(server.FILES, grants)
+            self.assertEqual([Path(item['path']).name for item in server.complete_paths(str(root / 'not'))], ['notes.md'])
+            for index in range(60):
+                (root / f'doc{index}.md').write_text('test')
+            self.assertEqual(len(server.complete_paths(str(root))), 50)
+            with self.assertRaises(ValueError):
+                server.complete_paths('relative')
+
+    def test_collection_hydration_and_cli(self):
+        """Collection CLI operations grant unopen documents and report missing references."""
+        import os
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            workspace = Workspace(root / 'workspace.json')
+            (root / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            document = root / 'note.md'
+            document.write_text('# Note')
+            env = dict(os.environ, LEAF_STATE_DIR=str(root))
+            server.SESSIONS.clear()
+            with patch.object(server, 'WORKSPACE', workspace):
+                for arguments in (['collection', 'new', 'Atlas', '--paths', str(document)],
+                                  ['collection', 'new', 'Plans', '--parent', 'Atlas'],
+                                  ['collection', 'add', 'Atlas/Plans', str(document)],
+                                  ['collection', 'rename', 'Atlas/Plans', 'Design'],
+                                  ['collection', 'color', 'Atlas', 'green']):
+                    result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), *arguments, '--json'], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)['status'], 'saved')
+                self.assertEqual(workspace.data['tabs'], [])
+                hydrated = server.hydrate_workspace()
+                self.assertEqual(hydrated['entries'][0]['path'], str(document))
+                document.unlink()
+                hydrated = server.hydrate_workspace()
+                self.assertIn('error', hydrated['entries'][0])
+                self.assertEqual(hydrated['missing'][0]['path'], str(document))
+
     def test_group_cli_roundtrip(self):
         """CLI group commands share the server workspace and retain state across reloads."""
         import os

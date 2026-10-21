@@ -112,3 +112,35 @@ Ordinary `leaf refresh` reloads local files only. A failed download retains the 
 If some refreshes fail, successful sources remain updated; the command reports `partial`, lists failures, and exits 1.
 There is no automatic remote polling or browser update-from-board control yet.
 Only the selected file is downloaded; relative board images and linked files are not fetched automatically.
+
+## Collections: a virtual library
+
+```sh
+leaf collection new Atlas --color blue --paths /path/plan.md --json
+leaf collection new Plans --parent Atlas --json
+leaf collection add Atlas/Plans /path/notes.md --json
+leaf open /path/design.md --collection Atlas/Plans --json
+leaf collection rename Atlas/Plans Designs --json
+leaf collection color Atlas/Designs inherit --json
+leaf collection mv Atlas/Designs --root --index 0 --json
+leaf collection open Atlas --json
+leaf collection open Atlas --no-recursive --json
+leaf collection remove Atlas /path/plan.md --json
+leaf collection rm Atlas --json
+leaf collection list --json
+```
+
+Collections reference files anywhere; no files move on disk. Names are unique among siblings.
+Use stable IDs or root-relative name paths. Moving rejects cycles and sibling-name conflicts.
+Deleting removes the entire subtree's library references but leaves source files and already-open tabs intact.
+Opening creates or reuses a linked group; closed linked groups reopen with saved positions.
+Missing documents remain recoverable references. The default recursive open includes child collections.
+
+Collection create/add also accept Aboard URIs without opening tabs:
+
+```sh
+leaf collection add Atlas aboard://leaf/notes/ui-plan.md --server aboard --json
+leaf collection new Research --paths aboard://leaf/notes/ui-plan.md@v1 --server aboard --json
+```
+
+The source provenance is saved with the cached reference. The UI's path suggestions browse directories without adding a whole repository.

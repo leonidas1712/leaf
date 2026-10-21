@@ -185,3 +185,11 @@ Use `--group NAME` to choose an existing group. Aboard retains responsibility fo
 Downloads are cached privately under the Leaf state directory; your original documents are never overwritten.
 Unpinned files update on explicit refresh. Pinned `@vN` files retain that version. No remote polling runs in the background.
 Relative attachments and board links are not downloaded automatically. Refresh is available through the CLI; a UI button can follow later.
+
+## Collections
+
+Collections are nested virtual folders that reference documents across projects. Nothing moves on disk.
+Create one with `leaf collection new Atlas --paths /path/plan.md` and nest another with `leaf collection new Plans --parent Atlas`.
+`leaf collection open Atlas` opens its documents and descendants as a tab group.
+Use `leaf collection list --json` or `leaf help collection` to inspect the library and commands.
+Deleting a collection removes references, not source files or already-open tabs.

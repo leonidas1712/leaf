@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import math
+from library import apply_collection_action
 from groups import apply_group_action, assign_tabs, group_tabs, resolve_group
 
 TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log'}
@@ -14,7 +15,7 @@ def empty_workspace():
     """Return the initial versioned workspace without document contents or credentials."""
     return {'version': 1, 'revision': 0, 'folders': [], 'files': [], 'tabs': [], 'active': None,
             'recentFiles': [], 'recentFolders': [], 'theme': 'light', 'source': False,
-            'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {},
+            'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {}, 'collections': [],
             'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}}
 
 
@@ -23,7 +24,7 @@ def normalize_view(view):
     result = {}
     for key in ('folders', 'files', 'expanded'):
         values = view.get(key, [])
-        if not isinstance(values, list) or any(not isinstance(p, str) or not p.startswith('/') for p in values):
+        if not isinstance(values, list) or any(not isinstance(p, str) or not (p.startswith('/') or (key == 'expanded' and p in {'collection:' + item['id'] for item in view.get('collections', [])})) for p in values):
             raise ValueError(f'{key} must contain absolute paths.')
         result[key] = list(dict.fromkeys(values))
     tabs = view.get('tabs', [])
@@ -110,7 +111,7 @@ class Workspace:
                 tab['scroll'] = positions.get(tab['path'], tab['scroll'])
             data.update(normalize_view(merged))
         else:
-            data.update(normalize_view(view))
+            data.update(normalize_view(dict(view, collections=data['collections'])))
         for tab in data['tabs']:
             tab['group'] = canonical_groups.get(tab['path'])
         group_tabs(data)
@@ -143,6 +144,8 @@ class Workspace:
                     if not isinstance(source, dict) or source.get('kind') != 'aboard':
                         raise ValueError('Source must be Aboard metadata.')
                     data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
+                if command.get('collection'):
+                    apply_collection_action(data, {'action': 'collection-add', 'collection': command['collection'], 'paths': [path]})
                 data['active'] = path
                 recent = 'recentFiles'
             else:
@@ -162,6 +165,12 @@ class Workspace:
             if any(source.get(key) != previous.get(key) for key in ('kind', 'server', 'board', 'file', 'pinned')):
                 raise ValueError('A refresh cannot change source identity.')
             data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
+        elif action.startswith('collection-'):
+            apply_collection_action(data, command)
+            for source_path, source in command.get('sources', {}).items():
+                if action not in ('collection-create', 'collection-add') or source_path not in command.get('paths', []) or not isinstance(source, dict) or source.get('kind') != 'aboard':
+                    raise ValueError('Collection source metadata must belong to an added Aboard document.')
+                data['sources'][source_path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
         elif action.startswith('group-'):
             apply_group_action(data, command)
         elif action == 'reader':

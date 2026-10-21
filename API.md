@@ -64,3 +64,38 @@ The CLI adapter downloads Aboard files through the installed authenticated Aboar
 `source-update {path, source}` updates existing provenance without changing active tabs or reading positions.
 It must retain kind, server, board, file, and pinned identity. Source metadata also includes the downloaded SHA-256 digest.
 Aboard downloads and refresh remain CLI-only; the server does not run remote-fetch subprocesses.
+
+## Virtual collections
+
+`workspace.collections` is an ordered array of `{id,name,parent,color,docs}`.
+`parent` is another collection ID or null; `color` is a group color or null (inherit).
+`docs` contains ordered absolute paths. A document may belong to several collections.
+Names are unique among siblings, contain 1–120 characters, and cannot contain slash.
+References accept stable IDs or root-relative name paths such as `Atlas/Plans`.
+
+| Action | Fields | Behavior |
+| --- | --- | --- |
+| collection-create | name, parent?, color?, paths? | Create a library collection |
+| collection-update | collection, name?, color? | Rename or recolor; null color inherits |
+| collection-move | collection, parent, index? | Move under parent ID/path or null; index is the new sibling position |
+| collection-delete | collection | Remove the subtree and its references; retain documents and open tabs |
+| collection-add | collection, paths, index? | Add supported existing text files; dedupe and optionally position |
+| collection-remove | collection, paths | Remove references, including missing files |
+| collection-open | collection, recursive? | Open references as a linked tab group; recursive defaults true |
+
+Create/add resolve paths and require existing supported text files. Stored references survive missing files.
+Hydration grants collection documents even when not open; missing documents receive entries with errors.
+Opening preserves missing references as recoverable tabs and deduplicates recursive documents.
+A group linked by `group.collection` is reused. New group names gain a numeric suffix when needed to avoid collisions.
+Opening adds collection documents to that group, retaining tabs already there. It focuses the first collection document.
+Collection deletion detaches linked groups and removes subtree expansion keys; it never closes those tabs or deletes files.
+`expanded` accepts absolute folder paths and `collection:<existing-id>` keys. Arbitrary strings are rejected.
+Browser sync cannot replace canonical collections. Use actions for all collection mutations.
+`open-file` also accepts `collection` to add the opened document to an existing collection atomically.
+
+GET `/api/complete?path=PREFIX` returns up to 50 `{path,kind:"dir"|"file"}` suggestions.
+It requires normal API authentication and origin checks. Supply an absolute path or `~/` prefix.
+Suggestions are direct children of the deepest existing directory, filtered by the unfinished name prefix.
+Hidden entries, dependency directories, symlinks, and unsupported files are omitted. Completion never adds folders or grants file access.
+Collection create/add may include `sources:{absolutePath:provenance}` for added cached Aboard documents.
+The CLI resolves aboard:// inputs; browser actions accept local cached paths only.

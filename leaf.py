@@ -124,7 +124,7 @@ def make_parser():
         'scroll': 'Set or adjust the reading position', 'sidebar-width': 'Set sidebar width in pixels',
         'refresh': 'Reload documents', 'prefs': 'Show or set persistent preferences',
         'guide': 'Read the agent operation guide', 'skill': 'Print the portable agent skill',
-        'help': 'Show help for a command', 'group': 'Manage project tab groups',
+        'collection': 'Manage nested virtual document collections', 'help': 'Show help for a command', 'group': 'Manage project tab groups',
         'reader': 'Show or change reader typography', 'move-tab': 'Move a tab to an index and optional group',
     }
     for name, description in descriptions.items():
@@ -153,6 +153,36 @@ def make_parser():
         if name == 'move-tab':
             child.add_argument('paths', metavar='PATH')
             child.add_argument('index', type=int)
+        if name in ('open', 'open-file'):
+            child.add_argument('--collection', help='Add the document to an existing collection')
+        if name == 'collection':
+            operations = child.add_subparsers(dest='collection_action', required=True)
+            for operation in ('list', 'new', 'rename', 'color', 'mv', 'rm', 'add', 'remove', 'open'):
+                item = operations.add_parser(operation)
+                item.add_argument('--json', action='store_true', default=argparse.SUPPRESS)
+                if operation not in ('list', 'new'):
+                    item.add_argument('collection')
+                if operation in ('new', 'rename'):
+                    item.add_argument('name')
+                if operation in ('new', 'add'):
+                    item.add_argument('--server', help='Aboard server for aboard:// document references')
+                if operation == 'new':
+                    item.add_argument('--parent')
+                    item.add_argument('--color')
+                    item.add_argument('--paths', nargs='+')
+                if operation == 'color':
+                    item.add_argument('color', help='Group color name, or inherit')
+                if operation == 'mv':
+                    destination = item.add_mutually_exclusive_group(required=True)
+                    destination.add_argument('--parent')
+                    destination.add_argument('--root', action='store_true')
+                    item.add_argument('--index', type=int)
+                if operation in ('add', 'remove'):
+                    item.add_argument('paths', nargs='+')
+                if operation == 'add':
+                    item.add_argument('--index', type=int)
+                if operation == 'open':
+                    item.add_argument('--no-recursive', action='store_false', dest='recursive', default=True)
         if name == 'reader':
             child.add_argument('--font-size', type=float, dest='fontSize')
             child.add_argument('--width', choices=['normal', 'wide', 'full'])
@@ -217,13 +247,36 @@ def main():
         return
     args.paths = [args.paths] if isinstance(args.paths, str) else (args.paths or [])
     extra = {}
-    for key in ('width', 'top', 'by', 'fontSize', 'font', 'index', 'group', 'name', 'color', 'collapsed'):
+    for key in ('width', 'top', 'by', 'fontSize', 'font', 'index', 'group', 'name', 'color', 'collapsed', 'collection', 'parent', 'recursive'):
         if getattr(args, key, None) is not None:
             extra[key] = getattr(args, key)
     if extra.get('group') == 'none':
         extra['group'] = None
     if 'collapsed' in extra:
         extra['collapsed'] = extra['collapsed'] == 'true'
+    if args.action == 'collection':
+        if args.collection_action == 'list':
+            info = running()
+            from workspace import Workspace
+            output((info['workspace'] if info else Workspace(RUNTIME / 'workspace.json').data)['collections'], args.json)
+            return
+        args.action = 'collection-' + {'new': 'create', 'rename': 'update', 'color': 'update', 'mv': 'move', 'rm': 'delete'}.get(args.collection_action, args.collection_action)
+        if getattr(args, 'root', False):
+            extra['parent'] = None
+        if extra.get('color') == 'inherit':
+            extra['color'] = None
+        if args.paths:
+            extra['paths'] = []
+            sources = {}
+            for path in args.paths:
+                if path.startswith('aboard://') and args.collection_action in ('new', 'add'):
+                    from aboard_source import fetch_document
+                    path, source = fetch_document(path, RUNTIME, args.server)
+                    sources[path] = source
+                extra['paths'].append(str(Path(path).expanduser().resolve()))
+            if sources:
+                extra['sources'] = sources
+        args.paths = []
     if args.action == 'group':
         if args.group_action == 'list':
             info = running()
@@ -353,6 +406,7 @@ def main():
             open_browser(info['url'])
             time.sleep(.5)
         result = await_display(saved['revision'])
+        result['collections'] = saved['workspace']['collections']
         result['groups'] = saved['workspace']['groups']
         result['reader'] = saved['workspace']['reader']
         result['active'] = saved['workspace']['active']

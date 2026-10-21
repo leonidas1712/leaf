@@ -45,3 +45,9 @@ Use `@vN` to pin a version. Otherwise the latest version is selected at open or 
 `leaf refresh --aboard --json` refreshes saved board sources without changing tab focus.
 Aboard must already be installed, connected, and authorized for that board. Leaf does not join boards or handle credentials.
 Only the requested file is fetched; relative board attachments are not automatic.
+
+Collections are virtual library folders, distinct from open tab groups. Use `leaf collection` subcommands.
+Create with `leaf collection new NAME --paths PATH...`; nest with `--parent ROOT/CHILD`.
+`leaf collection open ROOT/CHILD` opens its recursive documents as a linked group.
+`leaf open PATH --collection ROOT/CHILD` opens and adds one document.
+Deleting a collection removes its subtree references only; files and open tabs remain.
