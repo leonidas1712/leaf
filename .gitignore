@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+*.jpg
+*.png
+*.log
+.env
+connection.json
+workspace.json
+.venv/
