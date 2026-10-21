@@ -237,7 +237,8 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
 
   useEffect(() => {
     if (!host.current) return
-    let timer = 0
+    // Push every change straight to the draft: close and reload guards must see edits made a
+    // millisecond ago. Only the split preview is debounced.
     const flush = (v: EditorView) => {
       pushed.current = v.state.doc.toString()
       setDraftText(path, pushed.current)
@@ -265,9 +266,7 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
         indentWithTab,
       ]),
       EditorView.updateListener.of((update) => {
-        if (!update.docChanged) return
-        clearTimeout(timer)
-        timer = window.setTimeout(() => flush(update.view), 120)
+        if (update.docChanged) flush(update.view)
       }),
     ]
     if (isMarkdown(path)) extensions.push(markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [frontMatter] }))
@@ -278,7 +277,6 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
     view.current = editor
     editor.focus()
     return () => {
-      clearTimeout(timer)
       flush(editor)
       editor.destroy()
       view.current = null
