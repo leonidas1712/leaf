@@ -162,7 +162,7 @@ cannot overwrite a newer change. If a saved file goes missing, its tab stays; re
 ## Privacy and security
 
 - The service binds only to `127.0.0.1`, requires a private token, and rejects foreign origins. Do not expose it through a tunnel.
-- Leaf reads only files you open and never uploads them. Remote images stay unloaded; web links open only when selected.
+- Leaf reads documents you select, including comment targets, and never uploads them. Remote images stay unloaded; web links open only when selected.
 - Markdown is sanitised, documents cannot run scripts, and Mermaid diagrams render as isolated images.
 - Folder scans skip hidden entries, symlinks, and dependency folders, with a 10 MB limit per file and 20,000 files per folder.
 
@@ -186,6 +186,21 @@ For an isolated instance that leaves your real workspace alone, run
 The installer points the `leaf` command at this checkout, so keep it in place. After moving it or changing Python
 installations, run `python3 install.py` again. To uninstall, run `leaf stop` and remove `~/.local/bin/leaf`; your
 documents and saved workspace are untouched.
+
+## Document comments for agents
+
+Leaf stores comment threads separately from document files. Agents can read, reply, and resolve them through the CLI.
+
+```sh
+leaf comments /path/plan.md --format md
+leaf comment working k_ID --author codex
+# Edit and check the document with your normal tools.
+leaf comment resolve k_ID 'Clarified the explanation.' --author codex
+```
+
+Use `--all` to list comments across documents. Status changes retain a UTC timeline with the author and optional note.
+Quote anchors report current line hints, or detached/ambiguous state when no unique match exists.
+See [the agent guide](AGENT-CONTROL.md#address-document-comments) for the full workflow.
 
 ## License
 

@@ -165,6 +165,49 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(restored['reader']['fontSize'], 18)
             self.assertEqual(restored['groups'][0]['color'], 'green')
 
+    def test_comments_api_and_cli_keep_timeline_without_rescans(self):
+        """Real CLI transitions persist and comment-only synchronization avoids folder scans."""
+        import os
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            document = root / 'plan.md'
+            document.write_text('# Plan\nA **bold** statement.')
+            workspace = Workspace(root / 'workspace.json')
+            workspace.action({'action': 'open-file', 'path': str(document)})
+            (root / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            env = dict(os.environ, LEAF_STATE_DIR=str(root), LEAF_AUTHOR='test-agent')
+            server.SESSIONS.clear()
+            headers = {'X-Leaf-Token': server.TOKEN}
+            self.assertEqual(self.request('/api/comments')[0], 403)
+            with patch.object(server, 'WORKSPACE', workspace), patch.object(server, 'COMMENT_REVISIONS', set()):
+                base = workspace.data['revision']
+                result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), 'comment', 'add', str(document),
+                                         'Clarify', '--quote', 'A bold statement.', '--json'], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                thread = json.loads(result.stdout)['comments'][0]
+                self.assertEqual(thread['author'], 'test-agent')
+                for operation in ('working', 'resolve', 'reopen'):
+                    result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), 'comment', operation,
+                                             thread['id'], 'Update', '--author', 'codex', '--json'], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                with patch.object(server, 'scan_folder', side_effect=AssertionError('Unexpected rescan')):
+                    code, body = self.request('/api/sync', {'session': 'comments-test', 'instance': server.SERVER_INSTANCE,
+                                                          'revision': base}, headers)
+                    self.assertEqual(code, 200)
+                    self.assertNotIn('entries', json.loads(body))
+                    self.assertEqual(len(json.loads(body)['workspace']['comments'][0]['replies']), 3)
+                code, body = self.request('/api/comments', headers=headers)
+                self.assertEqual(json.loads(body)['comments'][0]['location']['line'], 2)
+                self.assertEqual(json.loads(self.request('/api/comments?status=resolved', headers=headers)[1])['comments'], [])
+                result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), 'comments', '--format', 'md'],
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('marked resolved: Update', result.stdout)
+                self.assertEqual(document.read_text(), '# Plan\nA **bold** statement.')
+                server.SESSIONS.clear()
+
     def test_explicit_session_and_receipt(self):
         """Reject ambiguous readers and acknowledge only the addressed session."""
         headers = {'X-Leaf-Token': server.TOKEN}

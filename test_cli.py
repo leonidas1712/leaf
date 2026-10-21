@@ -24,6 +24,24 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, code, result.stderr)
                 self.assertFalse(state.exists())
 
+    def test_comment_listing_works_without_server(self):
+        """Offline listing derives locations without starting or modifying a workspace."""
+        import json
+        from workspace import Workspace
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            document = root / 'plan.md'
+            document.write_text('# Plan\nQuote')
+            workspace = Workspace(root / 'workspace.json')
+            workspace.action({'action': 'comment-add', 'path': str(document), 'body': 'Explain', 'anchor': {'quote': 'Quote'}})
+            before = workspace.path.read_bytes()
+            result = subprocess.run([sys.executable, str(BASE / 'leaf.py'), 'comments', '--all', '--json'],
+                                    env=dict(os.environ, LEAF_STATE_DIR=str(root)), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)[0]['location']['line'], 2)
+            self.assertEqual(workspace.path.read_bytes(), before)
+            self.assertFalse((root / 'connection.json').exists())
+
     def test_installed_launcher_from_other_directory(self):
         """An installed command must find assets and emit JSON outside the checkout."""
         import json

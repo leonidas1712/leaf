@@ -124,6 +124,7 @@ def make_parser():
         'scroll': 'Set or adjust the reading position', 'sidebar-width': 'Set sidebar width in pixels',
         'refresh': 'Reload documents', 'prefs': 'Show or set persistent preferences',
         'guide': 'Read the agent operation guide', 'skill': 'Print the portable agent skill',
+        'comments': 'Read document comments and their timelines', 'comment': 'Add, reply to, or resolve a comment',
         'collection': 'Manage nested virtual document collections', 'help': 'Show help for a command', 'group': 'Manage project tab groups',
         'reader': 'Show or change reader typography', 'move-tab': 'Move a tab to an index and optional group',
     }
@@ -183,6 +184,9 @@ def make_parser():
                     item.add_argument('--index', type=int)
                 if operation == 'open':
                     item.add_argument('--no-recursive', action='store_false', dest='recursive', default=True)
+        if name in ('comments', 'comment'):
+            from comments_cli import configure
+            configure(child, name)
         if name == 'reader':
             child.add_argument('--font-size', type=float, dest='fontSize')
             child.add_argument('--width', choices=['normal', 'wide', 'full'])
@@ -244,6 +248,10 @@ def main():
         path = BASE / ('AGENT-CONTROL.md' if args.action == 'guide' else 'skills/leaf/SKILL.md')
         content = path.read_text()
         output({'path': str(path), 'content': content} if args.json else content, args.json)
+        return
+    if args.action in ('comments', 'comment'):
+        from comments_cli import run
+        run(args, sys.modules[__name__])
         return
     args.paths = [args.paths] if isinstance(args.paths, str) else (args.paths or [])
     extra = {}

@@ -99,3 +99,35 @@ Suggestions are direct children of the deepest existing directory, filtered by t
 Hidden entries, dependency directories, symlinks, and unsupported files are omitted. Completion never adds folders or grants file access.
 Collection create/add may include `sources:{absolutePath:provenance}` for added cached Aboard documents.
 The CLI resolves aboard:// inputs; browser actions accept local cached paths only.
+
+## Document comments
+
+`workspace.comments` contains persistent threads in the same atomic workspace revision as tabs and collections.
+Browser sync cannot write comments. Action responses include canonical comments without derived locations.
+A sync response after only comment changes includes `workspace` without `entries` or `missing`.
+Clients must retain existing grants in that case. A new server instance still forces full hydration.
+
+Each thread has `id`, absolute `path`, nullable `anchor`, `body`, `author`, `created`, `updated`,
+`status`, `statusBy`, `statusAt`, and `replies`. Edited bodies also have `edited`.
+An anchor has `quote` and optional `prefix`, `suffix`, and `heading`.
+Each reply has `id`, `author`, `body`, `created`, optional `edited`, and optional `status`.
+All timestamps use ISO-8601 UTC. Status changes append timeline entries, even without a note.
+
+| Action | Fields | Behavior |
+| --- | --- | --- |
+| `comment-add` | path, body, anchor?, author? | Validate an existing supported text document and append a thread |
+| `comment-edit` | id, body, reply? | Edit the thread body or a named reply |
+| `comment-reply` | id, body, author? | Append a reply |
+| `comment-status` | id, status, author?, note? | Set open/working/resolved and append a status event |
+| `comment-delete` | id, reply? | Delete a thread or named reply, never the document |
+| `comment-anchor` | id, anchor | Replace the selector, or use null for the whole document |
+
+`GET /api/comments` requires the same local authentication as other API routes.
+It returns `{comments: [...]}` with derived `location: {state, line, endLine}` on each thread.
+Repeat `path` to select documents. Without paths, it selects the active document. `all=true` selects all documents.
+Repeat `status` to select states. The default is open plus working. `status=all` includes resolved threads.
+Location states are attached, ambiguous, and detached. Lines are one-based and null without a unique quote match.
+Document-level comments have attached state and null lines. Missing files do not delete threads.
+Quote matching collapses whitespace and retries with simplified Markdown removal while retaining source offsets.
+Prefix and suffix distinguish duplicate matches when one candidate has a unique highest context score.
+The location reader is bounded to 10 MiB per document. It reports detached for unreadable or oversized text.

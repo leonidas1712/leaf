@@ -6,16 +6,17 @@ from pathlib import Path
 import tempfile
 import math
 from library import apply_collection_action
+from comments import apply_comment_action
 from groups import apply_group_action, assign_tabs, group_tabs, resolve_group
 
 TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log'}
 
 
 def empty_workspace():
-    """Return the initial versioned workspace without document contents or credentials."""
+    """Return the initial versioned workspace with empty document and discussion lists."""
     return {'version': 1, 'revision': 0, 'folders': [], 'files': [], 'tabs': [], 'active': None,
             'recentFiles': [], 'recentFolders': [], 'theme': 'light', 'source': False,
-            'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {}, 'collections': [],
+            'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {}, 'collections': [], 'comments': [],
             'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}}
 
 
@@ -157,6 +158,8 @@ class Workspace:
                     data['expanded'].append(path)
                 recent = 'recentFolders'
             data[recent] = [path] + [p for p in data[recent] if p != path][:29]
+        elif action.startswith('comment-'):
+            apply_comment_action(data, command, TEXT_EXTENSIONS)
         elif action == 'source-update':
             if path not in data['sources'] or not isinstance(command.get('source'), dict):
                 raise ValueError('Source must already exist.')

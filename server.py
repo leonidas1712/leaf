@@ -11,6 +11,7 @@ import time
 import webbrowser
 import fcntl
 from workspace import Workspace, TEXT_EXTENSIONS
+from comments import list_comments
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -27,6 +28,7 @@ SESSIONS = {}
 COMMANDS = {}
 FILES = {}
 ROOTS = {}
+COMMENT_REVISIONS = set()
 
 
 def grant_file(path):
@@ -171,6 +173,13 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == '/api/status':
                 with LOCK:
                     self.respond({'app': 'leaf', 'version': 2, 'pid': os.getpid(), 'url': f'http://127.0.0.1:{self.server.server_port}', 'workspace': WORKSPACE.data, 'readers': live_sessions()})
+            elif url.path == '/api/comments':
+                with LOCK:
+                    paths = None if query.get('all') == ['true'] else (query.get('path') or [WORKSPACE.data['active']])
+                    statuses = query.get('status', ['open', 'working'])
+                    if any(status not in ('open', 'working', 'resolved', 'all') for status in statuses):
+                        raise ValueError('Unknown comment status.')
+                    self.respond({'comments': list_comments(WORKSPACE.data, paths, None if 'all' in statuses else statuses)})
             elif url.path == '/api/complete':
                 self.respond(complete_paths(query.get('path', [''])[0]))
             elif url.path == '/api/workspace':
@@ -232,7 +241,11 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({'status': 'stopping'})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                 elif self.path == '/api/action':
+                    previous_revision = WORKSPACE.data['revision']
                     workspace = WORKSPACE.action(data)
+                    if data['action'].startswith('comment-') and workspace['revision'] != previous_revision:
+                        COMMENT_REVISIONS.add(workspace['revision'])
+                        COMMENT_REVISIONS.intersection_update(range(max(0, workspace['revision'] - 1000), workspace['revision'] + 1))
                     self.respond({'status': 'saved', 'revision': workspace['revision'], 'workspace': workspace})
                 elif self.path == '/api/sync':
                     session = data['session']
@@ -244,7 +257,10 @@ class Handler(BaseHTTPRequestHandler):
                     SESSIONS[session] = {'seen': time.time(), 'state': dict(data.get('state', {}), revision=WORKSPACE.data['revision'] if accepted else revision)}
                     result = {'revision': WORKSPACE.data['revision'], 'instance': SERVER_INSTANCE, 'stamps': document_stamps()}
                     if not same_instance or (not accepted and revision != WORKSPACE.data['revision']):
-                        result.update(hydrate_workspace())
+                        if same_instance and revision >= 0 and all(r in COMMENT_REVISIONS for r in range(revision + 1, WORKSPACE.data['revision'] + 1)):
+                            result['workspace'] = WORKSPACE.data
+                        else:
+                            result.update(hydrate_workspace())
                     pending = []
                     for key, command in COMMANDS.items():
                         if command['session'] == session and command['status'] == 'queued':
