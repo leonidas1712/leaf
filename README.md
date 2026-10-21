@@ -163,3 +163,12 @@ node --check diagrams.js
 
 Bundled dependencies include Marked 15.0.12, DOMPurify 3.2.7, and Mermaid 11.12.0.
 Their licenses are in `vendor/`.
+
+## Project groups and typography
+
+Use `leaf group new Project --color blue`, then `leaf open plan.md --group Project`.
+`leaf group close Project` saves the group's tabs; `leaf group open Project` restores them.
+`leaf group list --json` lists stable IDs and saved groups. Group removal never deletes document files.
+Use `leaf reader --font-size 18 --width wide --font serif` to save reader settings.
+`leaf prefs theme system` follows the browser's system color scheme in the React UI.
+See [API.md](API.md) for frontend integration and action contracts.

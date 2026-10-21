@@ -36,7 +36,7 @@ class WorkspaceTests(unittest.TestCase):
         self.workspace.action({'action': 'scroll', 'top': 320})
         self.workspace.action({'action': 'reorder-tabs', 'paths': [str(self.second), str(self.first)]})
         restored = Workspace(self.state).data
-        self.assertEqual(restored['tabs'], [{'path': str(self.second), 'scroll': 320}, {'path': str(self.first), 'scroll': 0}])
+        self.assertEqual(restored['tabs'], [{'path': str(self.second), 'scroll': 320, 'group': None}, {'path': str(self.first), 'scroll': 0, 'group': None}])
         self.assertEqual(restored['folders'], [str(self.root)])
         self.assertEqual(restored['theme'], 'dark')
         self.assertEqual(restored['recentFiles'][0], str(self.second))

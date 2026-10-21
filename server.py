@@ -80,6 +80,19 @@ def hydrate_workspace():
     return {'workspace': WORKSPACE.data, 'entries': list(entries.values()), 'missing': missing}
 
 
+def document_stamps():
+    """Expose change markers for open documents without reading their contents."""
+    stamps = {}
+    for tab in WORKSPACE.data['tabs']:
+        path = Path(tab['path'])
+        try:
+            stat = path.stat()
+            stamps[str(path)] = str(stat.st_mtime_ns) + ':' + str(stat.st_size)
+        except OSError:
+            stamps[str(path)] = None
+    return stamps
+
+
 def live_sessions():
     """Return recent browser views without persisting transport identities."""
     return [dict(id=k, **v['state']) for k, v in SESSIONS.items() if time.time() - v['seen'] < 10]
@@ -201,9 +214,9 @@ class Handler(BaseHTTPRequestHandler):
                     accepted = False
                     same_instance = data.get('instance') == SERVER_INSTANCE
                     if 'view' in data and same_instance:
-                        accepted = WORKSPACE.sync(revision, data['view'])
+                        accepted = WORKSPACE.sync(revision, data['view'], view_only=data.get('viewOnly', False))
                     SESSIONS[session] = {'seen': time.time(), 'state': dict(data.get('state', {}), revision=WORKSPACE.data['revision'] if accepted else revision)}
-                    result = {'revision': WORKSPACE.data['revision'], 'instance': SERVER_INSTANCE}
+                    result = {'revision': WORKSPACE.data['revision'], 'instance': SERVER_INSTANCE, 'stamps': document_stamps()}
                     if not same_instance or (not accepted and revision != WORKSPACE.data['revision']):
                         result.update(hydrate_workspace())
                     pending = []

@@ -124,7 +124,8 @@ def make_parser():
         'scroll': 'Set or adjust the reading position', 'sidebar-width': 'Set sidebar width in pixels',
         'refresh': 'Reload documents', 'prefs': 'Show or set persistent preferences',
         'guide': 'Read the agent operation guide', 'skill': 'Print the portable agent skill',
-        'help': 'Show help for a command',
+        'help': 'Show help for a command', 'group': 'Manage project tab groups',
+        'reader': 'Show or change reader typography', 'move-tab': 'Move a tab to an index and optional group',
     }
     for name, description in descriptions.items():
         child = commands.add_parser(name, help=description, description=description)
@@ -137,7 +138,7 @@ def make_parser():
         elif name in ('open-file', 'open-folder', 'focus', 'focus-tab', 'remove-folder', 'expand-folder', 'collapse-folder', 'heading'):
             child.add_argument('paths', metavar='PATH')
         elif name in ('theme', 'view'):
-            child.add_argument('paths', choices=('light', 'dark') if name == 'theme' else ('source', 'formatted'))
+            child.add_argument('paths', choices=('light', 'dark', 'system') if name == 'theme' else ('source', 'formatted'))
         elif name == 'sidebar-width':
             child.add_argument('width', type=int, choices=range(180, 601), metavar='180..600')
         elif name == 'scroll':
@@ -146,7 +147,33 @@ def make_parser():
             group.add_argument('--by', type=float)
         elif name == 'prefs':
             child.add_argument('key', nargs='?', choices=['theme'])
-            child.add_argument('value', nargs='?', choices=['light', 'dark'])
+            child.add_argument('value', nargs='?', choices=['light', 'dark', 'system'])
+        if name in ('open', 'open-file', 'move-tab'):
+            child.add_argument('--group', help='Exact existing group name or ID; use none to ungroup')
+        if name == 'move-tab':
+            child.add_argument('paths', metavar='PATH')
+            child.add_argument('index', type=int)
+        if name == 'reader':
+            child.add_argument('--font-size', type=float, dest='fontSize')
+            child.add_argument('--width', choices=['normal', 'wide', 'full'])
+            child.add_argument('--font', choices=['sans', 'serif'])
+        if name == 'group':
+            groups = child.add_subparsers(dest='group_action', required=True)
+            for operation in ('list', 'new', 'update', 'add', 'ungroup', 'close', 'open', 'rm'):
+                group_parser = groups.add_parser(operation)
+                group_parser.add_argument('--json', action='store_true', default=argparse.SUPPRESS)
+                if operation == 'new':
+                    group_parser.add_argument('name')
+                    group_parser.add_argument('--color', choices=['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'])
+                    group_parser.add_argument('--paths', nargs='+')
+                elif operation not in ('list', 'ungroup'):
+                    group_parser.add_argument('group')
+                if operation in ('add', 'ungroup'):
+                    group_parser.add_argument('paths', nargs='+')
+                if operation == 'update':
+                    group_parser.add_argument('--name')
+                    group_parser.add_argument('--color', choices=['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'])
+                    group_parser.add_argument('--collapsed', choices=['true', 'false'])
         if name in ('open', 'open-file', 'open-folder', 'ui'):
             child.add_argument('--no-browser', action='store_true', help='Do not launch a browser')
         if name == 'heading':
@@ -186,9 +213,28 @@ def main():
         return
     args.paths = [args.paths] if isinstance(args.paths, str) else (args.paths or [])
     extra = {}
-    for key in ('width', 'top', 'by'):
+    for key in ('width', 'top', 'by', 'fontSize', 'font', 'index', 'group', 'name', 'color', 'collapsed'):
         if getattr(args, key, None) is not None:
             extra[key] = getattr(args, key)
+    if extra.get('group') == 'none':
+        extra['group'] = None
+    if 'collapsed' in extra:
+        extra['collapsed'] = extra['collapsed'] == 'true'
+    if args.action == 'group':
+        if args.group_action == 'list':
+            info = running()
+            from workspace import Workspace
+            output((info['workspace'] if info else Workspace(RUNTIME / 'workspace.json').data)['groups'], args.json)
+            return
+        args.action = 'group-' + {'new': 'create', 'rm': 'delete'}.get(args.group_action, args.group_action)
+        if args.paths:
+            extra['paths'] = [str(Path(path).expanduser().resolve()) for path in args.paths]
+        args.paths = []
+    if args.action == 'reader' and not extra:
+        info = running()
+        from workspace import Workspace
+        output((info['workspace'] if info else Workspace(RUNTIME / 'workspace.json').data)['reader'], args.json)
+        return
     if args.action == 'reorder-tabs':
         extra['paths'] = args.paths
     if args.action == 'prefs':
@@ -260,12 +306,12 @@ def main():
                     open_browser(info['url'])
                 print(json.dumps({'status': 'running', 'url': info['url']}))
                 return
-            commands = [{'action': 'open-folder' if Path(p).expanduser().is_dir() else 'open-file', 'path': str(Path(p).expanduser().resolve())} for p in args.paths]
+            commands = [dict(extra, **{'action': 'open-folder' if Path(p).expanduser().is_dir() else 'open-file', 'path': str(Path(p).expanduser().resolve())}) for p in args.paths]
         else:
             command = dict(extra, action={'close': 'close-tab', 'focus': 'focus-tab'}.get(action, action))
             if args.paths:
                 path = args.paths[0]
-                if command['action'] in ('open-file', 'open-folder', 'focus-tab', 'close-tab', 'remove-folder') or (command['action'] in ('expand-folder', 'collapse-folder') and path != '*'):
+                if command['action'] in ('open-file', 'open-folder', 'focus-tab', 'close-tab', 'remove-folder', 'move-tab') or (command['action'] in ('expand-folder', 'collapse-folder') and path != '*'):
                     path = str(Path(path).expanduser().resolve())
                 command['path'] = path
             if command['action'] == 'reorder-tabs' and 'paths' in command:
@@ -277,6 +323,8 @@ def main():
             open_browser(info['url'])
             time.sleep(.5)
         result = await_display(saved['revision'])
+        result['groups'] = saved['workspace']['groups']
+        result['reader'] = saved['workspace']['reader']
         result['active'] = saved['workspace']['active']
         result['tabs'] = [tab['path'] for tab in saved['workspace']['tabs']]
     output(result, args.json)

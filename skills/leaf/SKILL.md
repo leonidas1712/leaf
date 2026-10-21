@@ -18,6 +18,11 @@ leaf tabs --json
 leaf focus-tab /absolute/path/document.md --json
 leaf close-tab /absolute/path/document.md --json
 leaf prefs theme dark --json
+leaf group new Project --color blue --json
+leaf open /absolute/path/plan.md --group Project --json
+leaf group close Project --json
+leaf group open Project --json
+leaf reader --font-size 18 --width wide --json
 leaf restart --json
 ```
 
@@ -31,3 +36,6 @@ For visual correctness, inspect the user's browser after the command. Do not cla
 Use `leaf heading HEADING --session ID --json` when targeting one live reader.
 Do not expose the private connection token or commit runtime state, document contents, or screenshots.
 Leaf reads documents; it does not modify, move, or delete source documents.
+
+Groups require unique names. Closing saves member tabs; removing a group closes tabs without deleting documents.
+Read API.md in the source checkout before changing synchronization or group behavior.

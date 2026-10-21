@@ -68,6 +68,49 @@ class BridgeTests(unittest.TestCase):
                 (dist / 'index.html').unlink()
                 self.assertEqual(self.request('/')[0], 503)
 
+    def test_document_stamps_track_edits_and_missing_files(self):
+        """Open-tab stamps change after rewrites and become null when files disappear."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            path = root / 'note.md'
+            path.write_text('one')
+            workspace = Workspace(root / 'state.json')
+            workspace.action({'action': 'open-file', 'path': str(path)})
+            with patch.object(server, 'WORKSPACE', workspace):
+                before = server.document_stamps()
+                path.write_text('different content')
+                self.assertNotEqual(before, server.document_stamps())
+                path.unlink()
+                self.assertIsNone(server.document_stamps()[str(path)])
+
+    def test_group_cli_roundtrip(self):
+        """CLI group commands share the server workspace and retain state across reloads."""
+        import os
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            workspace = Workspace(root / 'workspace.json')
+            (root / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            document = root / 'note.md'
+            document.write_text('# Note')
+            env = dict(os.environ, LEAF_STATE_DIR=str(root))
+            server.SESSIONS.clear()
+            with patch.object(server, 'WORKSPACE', workspace):
+                for arguments in (['group', 'new', 'Project', '--color', 'green'],
+                                  ['open', str(document), '--group', 'Project', '--no-browser'],
+                                  ['reader', '--font-size', '18', '--width', 'wide'],
+                                  ['group', 'update', 'Project', '--collapsed', 'true'],
+                                  ['group', 'close', 'Project'], ['group', 'open', 'Project'],
+                                  ['move-tab', str(document), '0', '--group', 'none']):
+                    result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), *arguments, '--json'], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)['status'], 'saved')
+            restored = Workspace(workspace.path).data
+            self.assertIsNone(restored['tabs'][0]['group'])
+            self.assertEqual(restored['reader']['fontSize'], 18)
+            self.assertEqual(restored['groups'][0]['color'], 'green')
+
     def test_explicit_session_and_receipt(self):
         """Reject ambiguous readers and acknowledge only the addressed session."""
         headers = {'X-Leaf-Token': server.TOKEN}

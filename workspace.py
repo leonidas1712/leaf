@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import math
+from groups import apply_group_action, assign_tabs, group_tabs, resolve_group
 
 TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log'}
 
@@ -12,7 +14,8 @@ def empty_workspace():
     """Return the initial versioned workspace without document contents or credentials."""
     return {'version': 1, 'revision': 0, 'folders': [], 'files': [], 'tabs': [], 'active': None,
             'recentFiles': [], 'recentFolders': [], 'theme': 'light', 'source': False,
-            'search': '', 'sidebarWidth': 280, 'expanded': []}
+            'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {},
+            'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}}
 
 
 def normalize_view(view):
@@ -32,13 +35,16 @@ def normalize_view(view):
             raise ValueError('Tab paths must be absolute.')
         if tab['path'] in [item['path'] for item in result['tabs']]:
             raise ValueError('Duplicate tab path.')
-        result['tabs'].append({'path': tab['path'], 'scroll': max(0, min(1e8, float(tab.get('scroll', 0))))})
+        scroll = float(tab.get('scroll', 0))
+        if not math.isfinite(scroll):
+            raise ValueError('Scroll position must be finite.')
+        result['tabs'].append({'path': tab['path'], 'scroll': max(0, min(1e8, scroll)), 'group': tab.get('group')})
     active = view.get('active')
     if active is not None and active not in [tab['path'] for tab in result['tabs']]:
         raise ValueError('Active document must be an open tab.')
     result['active'] = active
-    if view.get('theme', 'light') not in ('light', 'dark'):
-        raise ValueError('Theme must be light or dark.')
+    if view.get('theme', 'light') not in ('light', 'dark', 'system'):
+        raise ValueError('Theme must be light, dark, or system.')
     result['theme'] = view.get('theme', 'light')
     result['source'] = bool(view.get('source', False))
     result['search'] = str(view.get('search', ''))[:1000]
@@ -88,12 +94,26 @@ class Workspace:
             raise
         return True
 
-    def sync(self, revision, view):
+    def sync(self, revision, view, view_only=False):
         """Accept a browser update only when based on the current server revision."""
         if revision != self.data['revision']:
             return False
         data = copy.deepcopy(self.data)
-        data.update(normalize_view(view))
+        canonical_groups = {tab['path']: tab.get('group') for tab in data['tabs']}
+        if view_only:
+            merged = copy.deepcopy(data)
+            for key in ('expanded', 'search', 'sidebarWidth'):
+                if key in view:
+                    merged[key] = view[key]
+            positions = {tab['path']: tab.get('scroll', 0) for tab in view.get('tabs', [])}
+            for tab in merged['tabs']:
+                tab['scroll'] = positions.get(tab['path'], tab['scroll'])
+            data.update(normalize_view(merged))
+        else:
+            data.update(normalize_view(view))
+        for tab in data['tabs']:
+            tab['group'] = canonical_groups.get(tab['path'])
+        group_tabs(data)
         if data['active'] and data['active'] != self.data['active']:
             path = data['active']
             data['recentFiles'] = [path] + [p for p in data['recentFiles'] if p != path][:29]
@@ -115,7 +135,14 @@ class Workspace:
                 if path not in data['files']:
                     data['files'].append(path)
                 if path not in paths:
-                    data['tabs'].append({'path': path, 'scroll': 0})
+                    data['tabs'].append({'path': path, 'scroll': 0, 'group': None})
+                if 'group' in command:
+                    assign_tabs(data, command['group'], [path])
+                if 'source' in command:
+                    source = command['source']
+                    if not isinstance(source, dict) or source.get('kind') != 'aboard':
+                        raise ValueError('Source must be Aboard metadata.')
+                    data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned') if key in source}
                 data['active'] = path
                 recent = 'recentFiles'
             else:
@@ -127,6 +154,30 @@ class Workspace:
                     data['expanded'].append(path)
                 recent = 'recentFolders'
             data[recent] = [path] + [p for p in data[recent] if p != path][:29]
+        elif action.startswith('group-'):
+            apply_group_action(data, command)
+        elif action == 'reader':
+            reader = dict(data['reader'])
+            for key in ('fontSize', 'width', 'font'):
+                if key in command:
+                    reader[key] = command[key]
+            if not isinstance(reader['fontSize'], (int, float)) or not math.isfinite(reader['fontSize']) or not 12 <= reader['fontSize'] <= 28:
+                raise ValueError('Reader fontSize must be 12–28 pixels.')
+            if reader['width'] not in ('normal', 'wide', 'full') or reader['font'] not in ('sans', 'serif'):
+                raise ValueError('Unsupported reader width or font.')
+            data['reader'] = reader
+        elif action == 'move-tab':
+            if path not in paths:
+                raise ValueError('Tab is not open.')
+            index = command.get('index')
+            if not isinstance(index, int) or not 0 <= index < len(paths):
+                raise ValueError('Tab index is outside the open tab range.')
+            tab = next(tab for tab in data['tabs'] if tab['path'] == path)
+            if 'group' in command:
+                assign_tabs(data, command['group'], [path])
+            data['tabs'].remove(tab)
+            data['tabs'].insert(index, tab)
+            group_tabs(data)
         elif action == 'focus-tab':
             if path not in paths:
                 raise ValueError('Tab is not open.')
@@ -144,6 +195,10 @@ class Workspace:
             if not isinstance(order, list) or len(order) != len(paths) or set(order) != set(paths):
                 raise ValueError('Supply every open tab path exactly once.')
             data['tabs'] = [next(tab for tab in data['tabs'] if tab['path'] == p) for p in order]
+            grouped = copy.deepcopy(data)
+            group_tabs(grouped)
+            if grouped['tabs'] != data['tabs']:
+                raise ValueError('Keep each group contiguous when reordering tabs.')
         elif action == 'remove-folder':
             if path not in data['folders']:
                 raise ValueError('Folder is not in the workspace.')
@@ -155,8 +210,8 @@ class Workspace:
             else:
                 data['expanded'] = [p for p in data['expanded'] if p not in targets]
         elif action == 'theme':
-            if path not in ('light', 'dark'):
-                raise ValueError('Theme must be light or dark.')
+            if path not in ('light', 'dark', 'system'):
+                raise ValueError('Theme must be light, dark, or system.')
             data['theme'] = path
         elif action == 'view':
             if path not in ('source', 'formatted'):
@@ -177,6 +232,6 @@ class Workspace:
             data['revision'] += 1
         else:
             raise ValueError('Unknown workspace action: ' + action)
-        normalize_view(data)
+        data.update(normalize_view(data))
         self.commit(data)
         return copy.deepcopy(self.data)

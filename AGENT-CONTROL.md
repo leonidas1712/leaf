@@ -68,3 +68,26 @@ Do not expose it through a tunnel. Leaf does not edit source documents.
 `leaf skill` prints the portable skill. `python3 install.py --skill` installs it for Codex.
 Other agents can read `leaf guide` without installing a skill.
 See README.md and AGENTS.md in the source checkout for development instructions.
+
+## Project groups and reader settings
+
+```sh
+leaf group list --json
+leaf group new 'Project' --color blue --json
+leaf open /path/plan.md --group Project --json
+leaf group add Project /path/plan.md /path/notes.md --json
+leaf group update Project --name 'Project plans' --collapsed true --json
+leaf group close 'Project plans' --json
+leaf group open 'Project plans' --json
+leaf group ungroup /path/plan.md --json
+leaf group rm 'Project plans' --json
+leaf move-tab /path/plan.md 0 --group none --json
+leaf reader --font-size 18 --font serif --width wide --json
+leaf reader --json
+leaf prefs theme system --json
+```
+
+Groups require unique names. `--group` on open requires an existing group.
+Closing a group saves its tabs and positions. Removing a group closes its tabs without deleting source files.
+Tab groups remain contiguous; moving a tab can adjust its final position to preserve grouping.
+See API.md for the browser synchronization and group action contracts.
