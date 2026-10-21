@@ -46,9 +46,11 @@ def start():
         current = running()
         if current:
             return current
-        if process.poll() is not None:
-            raise RuntimeError(f'Leaf did not start. Inspect {RUNTIME / "server.log"}. No other process was stopped.')
+        # Another launcher can win the server lock before publishing connection.json.
+        # Keep the bounded readiness wait even when our own child exits.
         time.sleep(.1)
+    if process.poll() is not None:
+        raise RuntimeError(f'Leaf did not start. Inspect {RUNTIME / "server.log"}. No other process was stopped.')
     raise RuntimeError('Leaf did not become ready within five seconds.')
 
 

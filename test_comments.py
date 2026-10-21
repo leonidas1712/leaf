@@ -53,6 +53,44 @@ class CommentTests(unittest.TestCase):
         thread['anchor'] = {'quote': 'A link here'}
         self.assertEqual(locate(thread, '# A [link](https://example.test) here')['line'], 1)
 
+    def test_cli_style_anchor_enrichment_and_changed_passage(self):
+        """Quote-only creation captures context and locates an edited passage by surroundings."""
+        self.path.write_text('# Project\n## Migration\n\nThis introductory paragraph explains the goal of the change and provides enough surrounding context for a review.\n')
+        self.w.action({'action': 'comment-add', 'path': str(self.path), 'body': 'Clarify',
+                       'anchor': {'quote': 'explains the goal of the change', 'prefix': '', 'suffix': '', 'heading': ''}})
+        thread = self.w.data['comments'][-1]
+        self.assertEqual(thread['anchor']['heading'], 'Project › Migration')
+        self.assertTrue(12 <= len(thread['anchor']['prefix']) <= 32)
+        self.assertTrue(12 <= len(thread['anchor']['suffix']) <= 32)
+        self.path.write_text(self.path.read_text().replace('explains the goal of the change', 'describes what the migration changes'))
+        result = list_comments(self.w.data)[-1]
+        self.assertEqual(result['location'], {'state': 'changed', 'line': 4, 'endLine': 4})
+        self.assertIn('changed · line 4', markdown_comments([result]))
+        self.assertEqual(thread['anchor']['quote'], 'explains the goal of the change')
+
+    def test_context_fallback_rejects_weak_duplicate_and_distant_surroundings(self):
+        """Changed-text matching needs long unique context and a bounded nonempty gap."""
+        anchor = {'quote': 'original phrase', 'prefix': 'unique context before ', 'suffix': ' context after passage'}
+        thread = {'anchor': anchor}
+        valid = anchor['prefix'] + 'new phrase' + anchor['suffix']
+        self.assertEqual(locate(thread, valid)['state'], 'changed')
+        for source in (valid + '\n' + valid, anchor['prefix'] + 'x' * 300 + anchor['suffix'],
+                       anchor['prefix'] + anchor['suffix'], 'new phrase'):
+            self.assertEqual(locate(thread, source)['state'], 'detached')
+        self.assertEqual(locate({'anchor': dict(anchor, prefix='tiny')}, 'tinynew phrase' + anchor['suffix'])['state'], 'detached')
+
+    def test_enrichment_does_not_guess_or_replace_explicit_context(self):
+        """Ambiguous quotes remain unfilled and explicit selectors retain user intent."""
+        from comments import enrich_anchor, heading_trail
+        self.assertEqual(enrich_anchor({'quote': 'same'}, 'same and same'), {'quote': 'same'})
+        explicit = {'quote': 'text', 'prefix': 'custom', 'suffix': 'kept', 'heading': 'Manual'}
+        self.assertEqual(enrich_anchor(explicit, 'before text after'), explicit)
+        source = '# Parent\n```md\n# Fake\n```\n## Child\npassage'
+        self.assertEqual(heading_trail(source, source.index('passage')), 'Parent › Child')
+        result = list_comments(self.w.data)[0]
+        result['anchor']['heading'] = ''
+        self.assertNotIn('Heading:', markdown_comments([result]))
+
     def test_invalid_mutations_and_disk_failure_are_atomic(self):
         """Validation and persistence failures cannot partially modify thread state."""
         before = copy.deepcopy(self.w.data)

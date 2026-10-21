@@ -37,7 +37,7 @@ def apply_comment_action(data, command, extensions):
         if not path.is_file() or path.suffix.lower() not in extensions:
             raise ValueError('Choose a supported text document.')
         threads.append({'id': 'k_' + uuid.uuid4().hex[:12], 'path': str(path),
-                        'anchor': anchor_value(command.get('anchor')),
+                        'anchor': enrich_anchor(anchor_value(command.get('anchor')), read_document(path)),
                         'body': text_field(command.get('body'), 'body'), 'author': author,
                         'created': now, 'updated': now, 'status': 'open',
                         'statusBy': author, 'statusAt': now, 'replies': []})
@@ -101,33 +101,111 @@ def normalized(source, markdown=False):
     return ''.join(chars), offsets
 
 
+def exact_span(anchor, text):
+    """Select an exact quote only when its context has a unique best match."""
+    quote = anchor['quote']
+    matches = [m.start() for m in re.finditer('(?=' + re.escape(quote) + ')', text)]
+    if len(matches) > 1:
+        prefix = ' '.join(anchor.get('prefix', '').split())
+        suffix = ' '.join(anchor.get('suffix', '').split())
+        scores = [(int(bool(prefix) and text[:i].rstrip().endswith(prefix)) +
+                   int(bool(suffix) and text[i + len(quote):].lstrip().startswith(suffix)), i) for i in matches]
+        best = max(score for score, _ in scores)
+        matches = [i for score, i in scores if score == best]
+    if len(matches) > 1:
+        return 'ambiguous', None, None
+    if not matches:
+        return 'detached', None, None
+    return 'attached', matches[0], matches[0] + len(quote)
+
+
+def heading_trail(source, offset):
+    """Collect Markdown heading ancestors before the selection, excluding fenced code."""
+    trail, fence = [], None
+    lines = source[:offset].splitlines()
+    for index, line in enumerate(lines):
+        marker = re.match(r'^ {0,3}(`{3,}|~{3,})', line)
+        if marker:
+            token = marker[1]
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            continue
+        if fence:
+            continue
+        match = re.match(r'^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$', line)
+        if match:
+            level, title = len(match[1]), match[2]
+        elif index and re.fullmatch(r' {0,3}(?:=+|-+)\s*', line) and lines[index - 1].strip():
+            level, title = (1 if '=' in line else 2), lines[index - 1]
+        else:
+            continue
+        while trail and trail[-1][0] >= level:
+            trail.pop()
+        trail.append((level, normalized(title, True)[0].strip()))
+    return ' › '.join(title for _, title in trail)[:1000]
+
+
+def enrich_anchor(anchor, source):
+    """Fill absent context only for a unique quote, preserving explicit UI selectors."""
+    if anchor is None or source is None:
+        return anchor
+    text, offsets = normalized(source, True)
+    state, start, end = exact_span(anchor, text)
+    if state != 'attached':
+        return anchor
+    result = dict(anchor)
+    for key, value in (('prefix', text[max(0, start - 32):start]),
+                       ('suffix', text[end:end + 32]),
+                       ('heading', heading_trail(source, offsets[start]))):
+        if not result.get(key):
+            result[key] = value
+    return result
+
+
 def locate(thread, source):
-    """Return current one-based lines only for a uniquely matched quote selector."""
+    """Derive exact or changed-text lines; retain detached and ambiguous threads."""
     result = {'state': 'detached', 'line': None, 'endLine': None}
     anchor = thread.get('anchor')
     if anchor is None:
         return dict(result, state='attached')
     if source is None:
         return result
-    quote = ' '.join(anchor['quote'].split())
-    for stripped in (False, True):
-        text, offsets = normalized(source, stripped)
-        matches = [m.start() for m in re.finditer('(?=' + re.escape(quote) + ')', text)]
-        if not matches:
-            continue
-        if len(matches) > 1:
-            prefix = ' '.join(anchor.get('prefix', '').split())
-            suffix = ' '.join(anchor.get('suffix', '').split())
-            scores = [(int(bool(prefix) and text[:i].rstrip().endswith(prefix)) +
-                       int(bool(suffix) and text[i + len(quote):].lstrip().startswith(suffix)), i) for i in matches]
-            best = max(score for score, _ in scores)
-            matches = [i for score, i in scores if score == best]
-        if len(matches) != 1:
-            return dict(result, state='ambiguous')
-        start = matches[0]
-        return {'state': 'attached', 'line': source.count('\n', 0, offsets[start]) + 1,
-                'endLine': source.count('\n', 0, offsets[start + len(quote) - 1]) + 1}
+    views = [normalized(source, stripped) for stripped in (False, True)]
+    for text, offsets in views:
+        state, start, end = exact_span(anchor, text)
+        if state == 'ambiguous':
+            return dict(result, state=state)
+        if state == 'attached':
+            return {'state': state, 'line': source.count('\n', 0, offsets[start]) + 1,
+                    'endLine': source.count('\n', 0, offsets[end - 1]) + 1}
+    # Match the UI's conservative changed-passage fallback after exact matching fails.
+    prefix = re.sub(r'\s+', ' ', anchor.get('prefix', ''))
+    suffix = re.sub(r'\s+', ' ', anchor.get('suffix', ''))
+    if len(prefix) >= 12 and len(suffix) >= 12:
+        for text, offsets in views:
+            before = text.find(prefix)
+            if before < 0 or text.find(prefix, before + 1) >= 0:
+                continue
+            start = before + len(prefix)
+            end = text.find(suffix, start)
+            if start < end <= start + len(anchor['quote']) * 3 + 200:
+                return {'state': 'changed', 'line': source.count('\n', 0, offsets[start]) + 1,
+                        'endLine': source.count('\n', 0, offsets[end - 1]) + 1}
     return result
+
+
+def read_document(path):
+    """Read bounded UTF-8 text or return unavailable without losing stored comments."""
+    try:
+        if not Path(path).is_file():
+            return None
+        with Path(path).open('rb') as stream:
+            raw = stream.read(10 * 1024 * 1024 + 1)
+        return raw.decode('utf-8') if len(raw) <= 10 * 1024 * 1024 else None
+    except (OSError, UnicodeError):
+        return None
 
 
 def list_comments(data, paths=None, statuses=None):
@@ -138,12 +216,7 @@ def list_comments(data, paths=None, statuses=None):
         if (paths is not None and path not in paths) or (statuses is not None and thread['status'] not in statuses):
             continue
         if path not in sources:
-            try:
-                with Path(path).open('rb') as stream:
-                    raw = stream.read(10 * 1024 * 1024 + 1)
-                sources[path] = raw.decode('utf-8') if len(raw) <= 10 * 1024 * 1024 else None
-            except (OSError, UnicodeError):
-                sources[path] = None
+            sources[path] = read_document(path)
         result.append(dict(copy.deepcopy(thread), location=locate(thread, sources[path])))
     return result
 
@@ -155,11 +228,13 @@ def markdown_comments(threads):
         lines.append('No matching comments.')
     for thread in threads:
         location = thread['location']
-        where = f"line {location['line']}" if location['line'] else location['state']
+        where = f"{location['state']} · line {location['line']}" if location['line'] else location['state']
         lines.extend([f"## {thread['id']} · {thread['status']} · {where}", '', thread['path'], ''])
         if thread['anchor']:
-            lines.extend(['> ' + thread['anchor']['quote'].replace('\n', '\n> '),
-                          'Heading: ' + thread['anchor'].get('heading', ''), ''])
+            lines.append('> ' + thread['anchor']['quote'].replace('\n', '\n> '))
+            if thread['anchor'].get('heading'):
+                lines.append('Heading: ' + thread['anchor']['heading'])
+            lines.append('')
         lines.append(f"{thread['author']} · {thread['created']}: {thread['body']}")
         for reply in thread['replies']:
             status = ('marked ' + reply['status'] + ': ') if reply.get('status') else ''

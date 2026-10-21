@@ -24,6 +24,18 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, code, result.stderr)
                 self.assertFalse(state.exists())
 
+    def test_concurrent_start_waits_for_winning_server(self):
+        """An exited duplicate launcher must not fail before the winning server is ready."""
+        from unittest.mock import patch, Mock
+        import leaf
+        with tempfile.TemporaryDirectory() as directory:
+            ready = {'app': 'leaf', 'workspace': {}}
+            process = Mock()
+            process.poll.return_value = 1
+            with patch.object(leaf, 'RUNTIME', Path(directory)), patch.object(leaf, 'running', side_effect=[None, None, None, ready]), \
+                    patch.object(leaf.subprocess, 'Popen', return_value=process), patch.object(leaf.time, 'sleep'):
+                self.assertEqual(leaf.start(), ready)
+
     def test_comment_listing_works_without_server(self):
         """Offline listing derives locations without starting or modifying a workspace."""
         import json

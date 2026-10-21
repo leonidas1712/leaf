@@ -192,3 +192,8 @@ The locator reads at most 10 MiB per document. Document-level comments have atta
 If the quote disappears, inspect the original quote before changing the document or reattaching the thread.
 `comment anchor` without a quote makes a document-level comment.
 Explicit edit and delete commands change stored entries. Status transitions alone never erase earlier timeline entries.
+
+Quote-only creation fills missing context and heading hints when the quote has one identifiable match.
+A `changed` location means the original surroundings identify replacement text. Inspect that text before editing or resolving the comment.
+The fallback requires a unique prefix, at least 12 characters on each side, and a bounded gap.
+The Markdown view includes this state and omits empty heading hints.

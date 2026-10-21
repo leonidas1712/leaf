@@ -71,3 +71,6 @@ Read the current file before editing. Never guess a location from an ambiguous m
 Use `leaf comment add PATH 'body' --quote 'text' --author codex` to add a thread.
 Use `leaf comment anchor k_ID --quote 'new text'` to reattach it, or omit the quote for a document-level thread.
 Use `leaf comment reopen`, `edit`, and `rm` for explicit thread changes. Read `leaf guide` for reply-level operations.
+
+Quote-only creation captures missing context and heading hints for a unique match.
+A `changed` location identifies replacement text by its old surroundings. Inspect it before acting on the original quote.

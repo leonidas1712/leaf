@@ -126,8 +126,16 @@ All timestamps use ISO-8601 UTC. Status changes append timeline entries, even wi
 It returns `{comments: [...]}` with derived `location: {state, line, endLine}` on each thread.
 Repeat `path` to select documents. Without paths, it selects the active document. `all=true` selects all documents.
 Repeat `status` to select states. The default is open plus working. `status=all` includes resolved threads.
-Location states are attached, ambiguous, and detached. Lines are one-based and null without a unique quote match.
+Location states are attached, changed, ambiguous, and detached. Lines are one-based and null without a unique quote match.
 Document-level comments have attached state and null lines. Missing files do not delete threads.
 Quote matching collapses whitespace and retries with simplified Markdown removal while retaining source offsets.
 Prefix and suffix distinguish duplicate matches when one candidate has a unique highest context score.
 The location reader is bounded to 10 MiB per document. It reports detached for unreadable or oversized text.
+
+Quote-only creation fills empty prefix, suffix, and heading fields when the simplified Markdown view has a unique match.
+Explicit nonempty context remains unchanged. Generated prefix and suffix contain at most 32 characters each.
+The heading trail includes Markdown heading ancestors and excludes fenced code.
+If exact matching fails, the locator can identify a changed passage from its old surroundings.
+Both prefix and suffix must contain at least 12 characters. The prefix must occur exactly once.
+The suffix must follow within `quote.length * 3 + 200` characters, with a nonempty passage between them.
+This fallback returns `changed` with current lines. It never changes the stored quote or deletes the thread.
