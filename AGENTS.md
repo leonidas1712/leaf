@@ -12,7 +12,7 @@ Keep this app independent of other application repositories.
 
 Source lives in the checkout. Runtime state belongs outside the repository.
 Run `python3 -m unittest discover -p 'test_*.py' -v` after Python changes.
-Run `node --check app.js`, `node --check agent.js`, and `node --check diagrams.js` after JavaScript changes.
+Run `npm --prefix web run build` after TypeScript, React, or CSS changes.
 Keep the CLI help, README, agent guide, and portable skill consistent with behavior changes.
 Retain revision checks, local authentication, sanitized Markdown, and isolated Mermaid rendering.
 Do not commit screenshots of private documents. Do not reset a user's saved workspace for testing.

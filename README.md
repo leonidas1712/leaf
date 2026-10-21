@@ -27,8 +27,7 @@ The installer builds the frontend with `npm ci` and `npm run build` when `web/pa
 Use `python3 install.py --build` to rebuild after frontend changes.
 Use `--skip-build` to install only the launcher; this requires existing assets to read documents.
 The installer finds npm on PATH or in a local nvm installation. Build failures stop installation.
-During the migration, the server falls back to the original frontend when no React build exists.
-After cutover, a missing build displays installation instructions.
+The server serves only web/dist. A missing build displays installation instructions.
 
 The installer creates a launcher pointing at this checkout and its Python interpreter.
 Keep the checkout in place. After moving it or changing Python installations, run the installer again.
@@ -149,20 +148,18 @@ Folder scans support up to 20,000 files. Choose a smaller folder if this limit i
 ## Development
 
 `workspace.py` owns durable state and revision checks. `server.py` owns local transport and file grants.
-`leaf.py` implements the CLI. `agent.js` synchronizes the browser with the saved workspace.
-`app.js` implements the reader, and `diagrams.js` renders Mermaid.
+`leaf.py` implements the CLI. The React bridge synchronizes the browser with the saved workspace.
+`web/src/` implements the React reader, browser synchronization, and Mermaid rendering.
 
 Run validation from the app directory:
 
 ```sh
 python3 -m unittest discover -p 'test_*.py' -v
-node --check app.js
-node --check agent.js
-node --check diagrams.js
+npm --prefix web run build
 ```
 
-Bundled dependencies include Marked 15.0.12, DOMPurify 3.2.7, and Mermaid 11.12.0.
-Their licenses are in `vendor/`.
+Frontend dependencies and exact versions are recorded in `web/package.json` and `web/package-lock.json`.
+Their upstream license files are installed under `web/node_modules/` by npm.
 
 ## Project groups and typography
 
