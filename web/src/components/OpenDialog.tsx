@@ -24,7 +24,7 @@ export function OpenDialog() {
     if (!path) return
     setBusy(true)
     setError('')
-    const failure = folder ? await actions.openFolder(path, true) : await actions.open(path, true)
+    const failure = folder ? await actions.openFolder(path, true) : await actions.open(path, { quiet: true })
     setBusy(false)
     if (failure) setError(failure)
     else close()

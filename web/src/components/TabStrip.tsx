@@ -20,6 +20,7 @@ import { actions, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { GroupMenuItems, groupStyle } from './groups'
 import { ReaderSettings } from './ReaderSettings'
+import { carriesPath, draggedFromTab, draggedPath, startDrag } from '@/lib/dnd'
 
 export function TabStrip() {
   const workspace = useLeaf((s) => s.workspace)
@@ -42,11 +43,15 @@ export function TabStrip() {
   const groups = workspace?.groups ?? []
   const groupOf = (id?: string | null) => (id ? groups.find((g) => g.id === id) : undefined)
 
-  // Dropping on a tab takes its slot and joins its group, as in Chrome.
-  const dropOnTab = (target: string) => {
-    if (!dragging || dragging === target) return
+  // Dropping on a tab takes its slot and joins its group, as in Chrome. A document dragged
+  // from the sidebar opens beside it, inside the same group.
+  const dropOnTab = (event: React.DragEvent, target: string) => {
+    const path = draggedPath(event)
+    if (!path || path === target) return
     const index = tabs.findIndex((t) => t.path === target)
-    actions.moveTab(dragging, index, tabs[index].group ?? null)
+    const group = tabs[index].group ?? null
+    if (draggedFromTab(event)) actions.moveTab(path, index, group)
+    else actions.open(path, { group: group ?? undefined })
   }
 
   const move = (path: string, delta: number) => {
@@ -83,9 +88,28 @@ export function TabStrip() {
         ref={strip}
         role="tablist"
         aria-label="Open documents"
-        className="flex h-full min-w-0 flex-1 items-end overflow-x-auto pl-2 [scrollbar-width:none]"
+        className={cn(
+          'flex h-full min-w-0 flex-1 items-end overflow-x-auto pl-2 [scrollbar-width:none]',
+          dropTarget === 'strip' && 'bg-leaf-soft/40',
+        )}
         onWheel={(event) => {
           if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) strip.current!.scrollLeft += event.deltaY
+        }}
+        onDragOver={(event) => {
+          if (!carriesPath(event)) return
+          event.preventDefault()
+          if (event.target === event.currentTarget) setDropTarget('strip')
+        }}
+        onDragLeave={(event) => event.target === event.currentTarget && setDropTarget(null)}
+        onDrop={(event) => {
+          // Empty strip: open an outside document as a new ungrouped tab, or move a tab to the end.
+          if (event.target !== event.currentTarget) return
+          event.preventDefault()
+          setDropTarget(null)
+          const path = draggedPath(event)
+          if (!path) return
+          if (draggedFromTab(event)) actions.moveTab(path, tabs.length - 1, null)
+          else actions.open(path)
         }}
       >
         {tabs.map((tab, index) => {
@@ -109,14 +133,16 @@ export function TabStrip() {
                       title={`${group.name} · ${members.length} tabs`}
                       onClick={() => actions.groupUpdate(group, { collapsed: !group.collapsed })}
                       onDragOver={(event) => {
+                        if (!carriesPath(event)) return
                         event.preventDefault()
                         setDropTarget('group:' + group.id)
                       }}
                       onDragLeave={() => setDropTarget(null)}
                       onDrop={(event) => {
                         event.preventDefault()
-                        if (dragging && tabs.find((t) => t.path === dragging)?.group !== group.id) actions.groupAdd(group, [dragging])
                         setDropTarget(null)
+                        const path = draggedPath(event)
+                        if (path && tabs.find((t) => t.path === path)?.group !== group.id) actions.addToGroup(path, group)
                       }}
                       className={cn(
                         'mx-1 mb-[5px] flex h-6 max-w-40 shrink-0 items-center gap-1.5 self-end rounded-md px-2 text-[12px] font-semibold transition-colors',
@@ -142,20 +168,20 @@ export function TabStrip() {
                       style={group ? groupStyle(group.color) : undefined}
                       onDragStart={(event) => {
                         setDragging(tab.path)
-                        event.dataTransfer.effectAllowed = 'move'
-                        event.dataTransfer.setData('text/plain', tab.path)
+                        startDrag(event, tab.path, true)
                       }}
                       onDragEnd={() => {
                         setDragging(null)
                         setDropTarget(null)
                       }}
                       onDragOver={(event) => {
+                        if (!carriesPath(event)) return
                         event.preventDefault()
                         setDropTarget(tab.path)
                       }}
                       onDrop={(event) => {
                         event.preventDefault()
-                        dropOnTab(tab.path)
+                        dropOnTab(event, tab.path)
                         setDropTarget(null)
                       }}
                       onAuxClick={(event) => event.button === 1 && actions.close(tab.path)}
@@ -207,7 +233,7 @@ export function TabStrip() {
                           {groups
                             .filter((g) => !g.closed && g.id !== tab.group)
                             .map((g) => (
-                              <ContextMenuItem key={g.id} style={groupStyle(g.color)} onSelect={() => actions.groupAdd(g, [tab.path])}>
+                              <ContextMenuItem key={g.id} style={groupStyle(g.color)} onSelect={() => actions.addToGroup(tab.path, g)}>
                                 <span className="size-2 rounded-full bg-(--g)" />
                                 {g.name}
                               </ContextMenuItem>

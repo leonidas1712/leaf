@@ -330,16 +330,21 @@ export const actions = {
     reader.rememberActiveScroll()
     return act({ action: 'focus-tab', path }, (ws) => ({ ...ws, active: path }))
   },
-  open: (path: string, quiet = false) => {
+  open: (path: string, { quiet = false, group }: { quiet?: boolean; group?: string } = {}) => {
     reader.rememberActiveScroll()
     const ws = state.workspace
     if (ws?.tabs.some((tab) => tab.path === path)) return actions.focus(path)
     // Typed paths ("~/x.md", relative) resolve on the server; only absolute ones render optimistically.
     const optimistic: Optimistic | undefined = path.startsWith('/')
-      ? (w) => ({ ...w, tabs: [...w.tabs, { path, scroll: 0 }], active: path })
+      ? (w) => ({ ...w, tabs: [...w.tabs, { path, scroll: 0, group: group ?? null }], active: path })
       : undefined
-    return act({ action: 'open-file', path }, optimistic, quiet)
+    return act({ action: 'open-file', path, ...(group ? { group } : {}) }, optimistic, quiet)
   },
+  /** Put a document into a group: an open tab joins it; a closed document opens inside it. */
+  addToGroup: (path: string, group: TabGroup) =>
+    state.workspace?.tabs.some((tab) => tab.path === path)
+      ? act({ action: 'group-add', group: group.id, paths: [path] })
+      : actions.open(path, { group: group.id }),
   openFolder: (path: string, quiet = false) => act({ action: 'open-folder', path }, undefined, quiet),
   close: (path: string) =>
     act({ action: 'close-tab', path }, (ws) => {
@@ -366,7 +371,6 @@ export const actions = {
       ...ws,
       groups: ws.groups?.map((g) => (g.id === group.id ? { ...g, ...patch } : g)),
     })),
-  groupAdd: (group: TabGroup, paths: string[]) => act({ action: 'group-add', group: group.id, paths }),
   ungroup: (paths: string[]) => act({ action: 'group-ungroup', paths }),
   groupClose: (group: TabGroup) => {
     reader.rememberActiveScroll()

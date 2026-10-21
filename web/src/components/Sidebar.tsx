@@ -29,9 +29,11 @@ import { buildTree, type TreeNode } from '@/lib/tree'
 import { cn } from '@/lib/utils'
 import { GroupMenuItems, groupStyle } from './groups'
 import { LeafMark } from './LeafMark'
+import { carriesPath, draggedPath, startDrag } from '@/lib/dnd'
 
 /** Projects first: each group with its tab count; closed groups wait, dimmed, to be reopened. */
 function GroupRow({ group, workspace }: { group: TabGroup; workspace: Workspace }) {
+  const [over, setOver] = useState(false)
   const members = workspace.tabs.filter((tab) => tab.group === group.id)
   const containsActive = members.some((tab) => tab.path === workspace.active)
   const count = group.closed ? (group.saved?.length ?? 0) : members.length
@@ -49,11 +51,24 @@ function GroupRow({ group, workspace }: { group: TabGroup; workspace: Workspace 
           type="button"
           style={groupStyle(group.color)}
           onClick={open}
-          title={group.closed ? `Reopen ${count} tabs` : `${count} open tabs`}
+          title={group.closed ? `Reopen ${count} tabs` : `${count} open tabs · drop documents here to add them`}
+          onDragOver={(event) => {
+            if (!carriesPath(event)) return
+            event.preventDefault()
+            setOver(true)
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(event) => {
+            event.preventDefault()
+            setOver(false)
+            const path = draggedPath(event)
+            if (path && !members.some((tab) => tab.path === path)) actions.addToGroup(path, group)
+          }}
           className={cn(
             'flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors hover:bg-accent',
             containsActive ? 'font-medium text-ink' : 'text-ink-soft',
             group.closed && 'text-ink-muted',
+            over && 'bg-[color-mix(in_oklch,var(--g)_18%,var(--chrome))] ring-1 ring-(--g) ring-inset',
           )}
         >
           <span
@@ -101,6 +116,8 @@ const Row = memo(function Row({
             style={indent}
             title={displayPath(node.path)}
             onClick={() => actions.open(node.path)}
+            draggable
+            onDragStart={(event) => startDrag(event, node.path)}
             className={cn(ROW, selected ? 'bg-leaf-soft font-medium text-leaf-ink' : 'text-ink-soft hover:bg-accent hover:text-ink')}
           >
             <span className="w-3.5 shrink-0" />
@@ -338,6 +355,8 @@ export function Sidebar() {
                   type="button"
                   title={displayPath(path)}
                   onClick={() => actions.open(path)}
+                  draggable
+                  onDragStart={(event) => startDrag(event, path)}
                   className={cn(
                     'flex w-full flex-col rounded-md px-2 py-1 text-left transition-colors',
                     selected ? 'bg-leaf-soft' : 'hover:bg-accent',
@@ -364,6 +383,8 @@ export function Sidebar() {
                   type="button"
                   title={displayPath(path)}
                   onClick={() => (folder ? actions.openFolder(path) : actions.open(path))}
+                  draggable={!folder}
+                  onDragStart={(event) => !folder && startDrag(event, path)}
                   className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-ink-muted transition-colors hover:bg-accent hover:text-ink"
                 >
                   {folder ? <Folder className="size-3.5 shrink-0 text-ink-faint" /> : <Clock className="size-3.5 shrink-0 text-ink-faint" />}

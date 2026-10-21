@@ -269,7 +269,7 @@ export function DocumentView({
         return
       }
       pendingHash.current = hash ? decodeURIComponent(hash) : null
-      actions.open(target).catch(() => {})
+      actions.open(target)
     }
   }
 
