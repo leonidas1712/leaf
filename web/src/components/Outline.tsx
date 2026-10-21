@@ -39,12 +39,11 @@ export function Outline({ viewport }: { viewport: RefObject<HTMLDivElement | nul
   }, [items, open, viewport])
 
   if (!open) return null
-  if (items.length < 2) return <div className="w-52 shrink-0 max-[1180px]:hidden" />
+  if (items.length < 2) return <p className="text-[12px] text-ink-faint">This document has no sections.</p>
 
   return (
-    <nav aria-label="On this page" className="print-hide w-52 shrink-0 max-[1180px]:hidden">
-      <div className="sticky top-10 max-h-[calc(100vh-8rem)] overflow-y-auto pb-6">
-        <p className="mb-3 text-[11px] font-medium text-ink-faint">On this page</p>
+    <nav aria-label="On this page" className="print-hide">
+      <div className="sticky top-16 max-h-[calc(100vh-10rem)] overflow-y-auto pb-6">
         <ul className="relative border-l border-rule">
           {items.map((item) => (
             <li key={item.id}>

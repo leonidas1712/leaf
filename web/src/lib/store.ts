@@ -16,6 +16,9 @@ import {
   sendAction,
   type Entry,
   type Collection,
+  type Comment,
+  type CommentAnchor,
+  type CommentStatus,
   type GroupColor,
   type Hydration,
   type ReaderPrefs,
@@ -46,6 +49,12 @@ export interface LeafState {
   search: string
   sidebarWidth: number
   outlineOpen: boolean
+  /** Right column: follow the document (comments when it has any), or a fixed choice. */
+  sidePanel: 'auto' | 'outline' | 'comments'
+  /** Comment thread in focus (highlighted passage, raised card), or 'draft' while composing. */
+  activeComment: string | null
+  /** Unsaved new comment: its anchor (null for the whole document) and the document it is on. */
+  draft: { path: string; anchor: CommentAnchor | null } | null
   sidebarOpen: boolean
   paletteOpen: boolean
   /** Path prompt: open a document, add a folder, or add a document to a collection. */
@@ -72,6 +81,9 @@ let state: LeafState = {
   sidebarWidth: 280,
   sidebarOpen: true,
   outlineOpen: true,
+  sidePanel: 'auto',
+  activeComment: null,
+  draft: null,
   paletteOpen: false,
   openDialog: null,
   groupDialog: null,
@@ -185,8 +197,8 @@ function hydrate(payload: Hydration) {
   }
   setState({
     workspace: ws,
-    entries: new Map(payload.entries.map((entry) => [entry.path, entry])),
-    missing: payload.missing,
+    // Comment-only changes arrive without entries; keep the existing file grants then.
+    ...(payload.entries ? { entries: new Map(payload.entries.map((entry) => [entry.path, entry])), missing: payload.missing ?? [] } : {}),
     expanded: new Set(ws.expanded),
     search: ws.search,
     sidebarWidth: ws.sidebarWidth,
@@ -426,7 +438,29 @@ export const actions = {
     reader.rememberActiveScroll()
     return act({ action: 'collection-open', collection: collection.id })
   },
+
+  commentAdd: (path: string, body: string, anchor: CommentAnchor | null) =>
+    act({ action: 'comment-add', path, body, anchor, author: AUTHOR }),
+  commentReply: (comment: Comment, body: string) => act({ action: 'comment-reply', id: comment.id, body, author: AUTHOR }),
+  commentEdit: (comment: Comment, body: string, reply?: string) =>
+    act({ action: 'comment-edit', id: comment.id, body, ...(reply ? { reply } : {}) }),
+  commentStatus: (comment: Comment, status: CommentStatus) =>
+    act({ action: 'comment-status', id: comment.id, status, author: AUTHOR }, (ws) => ({
+      ...ws,
+      comments: ws.comments?.map((c) => (c.id === comment.id ? { ...c, status } : c)),
+    })),
+  commentDelete: (comment: Comment, reply?: string) =>
+    act({ action: 'comment-delete', id: comment.id, ...(reply ? { reply } : {}) }, (ws) => ({
+      ...ws,
+      comments: reply
+        ? ws.comments?.map((c) => (c.id === comment.id ? { ...c, replies: c.replies.filter((r) => r.id !== reply) } : c))
+        : ws.comments?.filter((c) => c.id !== comment.id),
+    })),
+  commentAnchor: (comment: Comment, anchor: CommentAnchor | null) => act({ action: 'comment-anchor', id: comment.id, anchor }),
 }
+
+/** Comments written in the browser are the reader's own; agents sign theirs with --author. */
+export const AUTHOR = 'you'
 
 export const DEFAULT_READER: ReaderPrefs = { fontSize: 16, width: 'normal', font: 'sans' }
 

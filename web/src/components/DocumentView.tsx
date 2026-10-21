@@ -7,7 +7,8 @@ import { renderDiagram } from '@/lib/mermaid'
 import { actions, reader, scrolls, setState, TEXT_FILE } from '@/lib/store'
 import { DiagramPanel, type DiagramResult } from './DiagramPanel'
 import { DocumentHeader } from './DocumentHeader'
-import { Outline } from './Outline'
+import { SelectionCommentButton } from './CommentsRail'
+import { SidePanel } from './SidePanel'
 
 interface Rendered {
   path: string
@@ -316,8 +317,9 @@ export function DocumentView({
             />
           </div>
         </div>
-        <Outline viewport={viewport} />
+        <SidePanel path={path} viewport={viewport} article={article} version={current} />
       </div>
+      {current && <SelectionCommentButton path={path} article={article} />}
       {current &&
         mounts.map((mount, index) => {
           const item = current.diagrams[index]

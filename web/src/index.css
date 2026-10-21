@@ -561,3 +561,11 @@
     break-after: avoid;
   }
 }
+
+/* Comment highlights (CSS Custom Highlight API): the document's DOM is never touched. */
+::highlight(leaf-comment) {
+  background-color: color-mix(in oklch, var(--g-yellow) 26%, transparent);
+}
+::highlight(leaf-comment-active) {
+  background-color: color-mix(in oklch, var(--g-yellow) 52%, transparent);
+}

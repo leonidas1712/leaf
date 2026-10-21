@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CollectionDialog } from '@/components/collections'
 import { CommandPalette } from '@/components/CommandPalette'
+import { startComment } from '@/components/CommentsRail'
 import { DocumentView } from '@/components/DocumentView'
 import { EmptyState } from '@/components/EmptyState'
 import { GroupDialog } from '@/components/groups'
@@ -38,6 +39,12 @@ function onKey(event: KeyboardEvent) {
     setState({ outlineOpen: !outlineOpen })
     return
   }
+  // ⌘⌥M, as in Google Docs: comment on the selection (works while text is selected).
+  if (mod && event.altKey && event.code === 'KeyM' && workspace?.active) {
+    event.preventDefault()
+    startComment(workspace.active, document.querySelector<HTMLElement>('article.prose-leaf'))
+    return
+  }
   const { openDialog, groupDialog, collectionDialog } = getState()
   if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || !workspace) return
   const key = event.key
@@ -53,6 +60,7 @@ function onKey(event: KeyboardEvent) {
     s: active ? () => actions.view(!workspace.source) : undefined,
     t: () => actions.theme(resolveTheme(workspace.theme) === 'dark' ? 'light' : 'dark'),
     o: () => setState({ openDialog: 'open-file' }),
+    c: active ? () => startComment(active, document.querySelector<HTMLElement>('article.prose-leaf')) : undefined,
   }
   const tab = /^[1-9]$/.test(key) ? (key === '9' ? workspace.tabs.at(-1) : workspace.tabs[Number(key) - 1]) : undefined
   const run = bindings[key] ?? (tab ? () => actions.focus(tab.path) : undefined)

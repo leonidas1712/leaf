@@ -41,6 +41,9 @@ export function TabStrip() {
   }, [active])
 
   const groups = workspace?.groups ?? []
+  const openComments = new Map<string, number>()
+  for (const comment of workspace?.comments ?? [])
+    if (comment.status !== 'resolved') openComments.set(comment.path, (openComments.get(comment.path) ?? 0) + 1)
   const groupOf = (id?: string | null) => (id ? groups.find((g) => g.id === id) : undefined)
 
   /** Accept a Leaf document drag on enter and over; `key` names the highlighted target. */
@@ -207,6 +210,14 @@ export function TabStrip() {
                       >
                         <FileText className={cn('size-3.5 shrink-0', selected ? 'text-leaf' : 'text-ink-faint', missing && 'text-destructive')} />
                         <span className={cn('truncate', missing && 'line-through decoration-ink-faint')}>{labels.get(tab.path)}</span>
+                        {openComments.get(tab.path) && (
+                          <span
+                            title={`${openComments.get(tab.path)} open comments`}
+                            className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--g-yellow)_30%,transparent)] px-1.5 text-[10.5px] leading-4 font-semibold text-ink tabular-nums"
+                          >
+                            {openComments.get(tab.path)}
+                          </span>
+                        )}
                       </button>
                       <button
                         aria-label={`Close ${labels.get(tab.path)}`}

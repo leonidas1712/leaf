@@ -30,6 +30,45 @@ export interface Collection {
   docs: string[]
 }
 
+/**
+ * Where a comment points: the passage the reader selected, with context to find it again after
+ * edits. Quote anchors survive rewrites that offsets would not; null anchors cover the whole doc.
+ */
+export interface CommentAnchor {
+  quote: string
+  prefix: string
+  suffix: string
+  heading?: string
+}
+
+export type CommentStatus = 'open' | 'working' | 'resolved'
+
+export interface CommentReply {
+  id: string
+  author: string
+  body: string
+  created: string
+  edited?: string
+  /** Set when this timeline entry records a status change; body is the optional note. */
+  status?: CommentStatus
+}
+
+export interface Comment {
+  id: string
+  path: string
+  anchor: CommentAnchor | null
+  body: string
+  author: string
+  created: string
+  updated?: string
+  /** Set when the first message's text was edited. */
+  edited?: string
+  status: CommentStatus
+  statusBy?: string
+  statusAt?: string
+  replies: CommentReply[]
+}
+
 export interface ReaderPrefs {
   fontSize: number
   width: 'normal' | 'wide' | 'full'
@@ -61,6 +100,7 @@ export interface Workspace {
   expanded: string[]
   groups?: TabGroup[]
   collections?: Collection[]
+  comments?: Comment[]
   sources?: Record<string, DocumentSource>
   reader?: ReaderPrefs
 }
