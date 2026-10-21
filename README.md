@@ -186,3 +186,7 @@ For an isolated instance that leaves your real workspace alone, run
 The installer points the `leaf` command at this checkout, so keep it in place. After moving it or changing Python
 installations, run `python3 install.py` again. To uninstall, run `leaf stop` and remove `~/.local/bin/leaf`; your
 documents and saved workspace are untouched.
+
+## License
+
+[MIT](LICENSE) © 2026 Leonidas Raghav
