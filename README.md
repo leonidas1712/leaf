@@ -1,178 +1,140 @@
-# Leaf
+<p align="center">
+  <img src="docs/assets/leaf-logo.svg" width="104" alt="Leaf logo">
+</p>
 
-Leaf is a local document reader with a persistent workspace and an agent control interface.
-Your documents can live anywhere. Opening a folder adds it to the workspace without closing your tabs.
+<h1 align="center">Leaf</h1>
 
-## Install from a checkout
+<p align="center">
+  <strong>One calm place to read everything your agents write.</strong><br>
+  A local reader for the plans, designs, and architecture notes scattered across your projects,<br>
+  driven equally well by you and by your AI agents.
+</p>
 
-Requires macOS or Linux, Python 3.10 or newer, and a modern browser. There are no Python packages to install. Building the React UI requires Node.js and npm; running a built installation does not.
-Windows is not supported yet because the service uses POSIX process locks.
+<p align="center">
+  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-2f6a4b?style=flat-square">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white">
+  <img alt="macOS and Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-4b5563?style=flat-square">
+  <img alt="React 19" src="https://img.shields.io/badge/react-19-149eca?style=flat-square&logo=react&logoColor=white">
+  <img alt="Local first" src="https://img.shields.io/badge/local--first-127.0.0.1-2f6a4b?style=flat-square">
+  <img alt="Agent operable" src="https://img.shields.io/badge/agents-CLI%20%2B%20JSON-7c3aed?style=flat-square">
+</p>
 
-Clone this repository into a permanent directory, then run:
+<p align="center">
+  <img src="docs/assets/screenshot-dark.png" alt="Leaf in dark mode: collections and groups in the sidebar, a rollout plan with front matter, a callout and a task list, and an outline on the right" width="100%">
+</p>
+
+## Why Leaf
+
+Agents produce a lot of Markdown: plans, designs, runbooks, decision records. It ends up spread across repositories,
+scratch folders, and shared boards. Leaf gathers it into one persistent reading workspace in your browser:
+
+- **Collections** link documents from anywhere into logical projects. Nothing moves on disk.
+- **Tab groups** keep a project's open documents together, and can be closed and reopened as one.
+- **Every action is a command.** Anything you can click, an agent can do with `leaf …`, so "open that in Leaf" just works.
+- **Live reload.** When an agent rewrites a document you are reading, it updates in place and keeps your position.
+
+Leaf is a reader. It never edits, moves, or deletes your files.
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Reading**
+- GitHub-flavoured Markdown with callouts, task lists, and tables
+- Mermaid diagrams, themed and isolated, with zoom, fit, and source
+- Syntax highlighting with one-click copy
+- YAML front matter shown as a properties block
+- Outline that follows your reading position
+- Light, dark, or system theme; sans or serif; adjustable size and line length
+
+</td>
+<td width="50%" valign="top">
+
+**Organising**
+- Nested collections that reference files anywhere, including Aboard boards
+- Chrome-style tab groups with colours, collapse, close, and reopen
+- Drag documents between folders, collections, groups, and tabs
+- ⌘K palette for documents, tabs, collections, and commands
+- Path entry that completes from disk, so big repositories stay usable
+- One saved workspace shared by every browser window
+
+</td>
+</tr>
+</table>
+
+<p align="center">
+  <img src="docs/assets/screenshot-diagrams-dark.png" alt="A Mermaid sequence diagram and a highlighted JSON block in Leaf's dark theme" width="100%">
+</p>
+
+## Quick start
+
+Requires macOS or Linux, Python 3.10 or newer, and a modern browser. Building the interface needs Node.js and npm;
+running a built installation needs only Python.
 
 ```sh
-cd leaf
-python3 install.py
-# Optional: install the Codex agent skill too
-python3 install.py --skill
-```
-
-Add `~/.local/bin` to your shell PATH if it is not already present:
-
-```sh
+git clone https://github.com/leonidas1712/leaf.git ~/leaf
+cd ~/leaf
+python3 install.py            # builds the web UI and installs the `leaf` command
 export PATH="$HOME/.local/bin:$PATH"
+
+leaf ui                       # start Leaf and open the browser
+leaf open examples            # add the bundled examples to the sidebar
 ```
 
-The installer builds the frontend with `npm ci` and `npm run build` when `web/package.json` exists and built assets are missing.
-Use `python3 install.py --build` to rebuild after frontend changes.
-Use `--skip-build` to install only the launcher; this requires existing assets to read documents.
-The installer finds npm on PATH or in a local nvm installation. Build failures stop installation.
-The server serves only web/dist. A missing build displays installation instructions.
+The reader lives at <http://127.0.0.1:18764>. The service keeps running after you close the terminal; after a reboot,
+run `leaf ui` again. Use `python3 install.py --skill` to also install the agent skill for Codex.
 
-The installer creates a launcher pointing at this checkout and its Python interpreter.
-Keep the checkout in place. After moving it or changing Python installations, run the installer again.
-Use `--bin-dir PATH` for another executable directory.
-Updates take effect after `leaf restart`; refresh the browser after UI changes.
-To uninstall, run `leaf stop`, remove the installed launcher, and remove the optional skill symlink.
-Your documents and saved workspace remain untouched.
+## Working with agents
 
-## Everyday commands
-
-Run these commands from any directory:
+Tell an agent to "open the plan in Leaf" and it runs the same commands you would:
 
 ```sh
-leaf                       # Show help
-leaf help open             # Explain one command
-leaf ui                    # Start Leaf and open the browser
-leaf guide                 # Read agent instructions
-leaf skill                 # Print the portable agent skill
-leaf prefs                 # Show persistent preferences
-leaf prefs theme dark      # Save dark mode as your default
-leaf open README.md        # Open a file relative to this terminal directory
-leaf open ~/Documents      # Add a folder without closing tabs
-leaf open one.md two.md    # Open several files
-leaf status                # Show service and workspace status
-leaf tabs                  # Show open tabs and reading positions
-leaf folders               # Show folders in the sidebar
-leaf recent                # Show recent files and folders
-leaf stop                  # Stop the server, keeping saved state
-leaf start                 # Start the server in the background
-leaf restart               # Restart and retain the workspace
+leaf open ~/projects/atlas/PLAN.md            # open a document in a new tab
+leaf open ~/projects/atlas/docs               # add a folder to the sidebar
+leaf collection new Atlas --color blue --paths ~/projects/atlas/PLAN.md
+leaf collection add Atlas aboard://atlas/notes/design.md
+leaf group new Review --paths ~/a.md ~/b.md   # group open tabs
+leaf heading "Rollback"                       # scroll the live reader to a heading
+leaf state --json                             # everything the reader shows, as JSON
 ```
 
-The server runs independently of the terminal. Closing the terminal does not stop it.
-After a computer restart, run `leaf ui` to continue. Leaf does not install a login service.
-The browser address remains <http://127.0.0.1:18764>.
+Every command accepts `--json`. Results distinguish **saved** (written to the workspace) from **applied** (a
+connected browser has rendered it), so an agent can tell when you can actually see the change. Run `leaf guide` for
+the full agent instructions and see [AGENT-CONTROL.md](AGENT-CONTROL.md) and [API.md](API.md) for the contracts.
 
-`leaf open` starts the server when needed. It opens a browser when no reader is connected.
-Use `leaf open PATH --no-browser` to save an open request without launching Chrome.
-`leaf status`, `leaf state`, `leaf tabs`, `leaf folders`, and `leaf recent` also work while the server is stopped.
+## Organising documents
 
-## Your saved workspace
+| | What it is | Use it for |
+| --- | --- | --- |
+| **Folders** | Real directories on disk, mirrored read-only | Browsing a project you want in full |
+| **Collections** | Leaf-only, nestable lists of links to documents anywhere | A logical project that spans repos, folders, and boards |
+| **Groups** | Sets of open tabs, like Chrome tab groups | The documents you are working with right now |
 
-Leaf saves these items automatically:
-
-- Open tabs, their order, and the active document.
-- Each tab's reading position.
-- Sidebar folders and expanded branches.
-- Recent files and folders.
-- Theme, source view, search text, and sidebar width.
-
-All connected readers show the same workspace. Browser windows are views of that workspace, not separate projects.
-A stale browser update cannot overwrite a newer revision.
-Closing a document tab persists its closure. Closing the browser retains the tabs for your next visit.
-
-The footer shows **Saved · Agent connected** after synchronization.
-Changes made while disconnected are not saved. Reconnection restores the last server state.
-If a saved file is missing, its tab remains. Restore the file and refresh Leaf to read it again.
-
-## Open documents from the interface
-
-1. Click **Open files** or **Open folder**.
-2. Paste an absolute local path or a path that starts with `~/`.
-3. Click **Open**.
-
-The sidebar also contains recent files and folders. Select one to reopen it.
-You can ask your agent to open a path instead of entering it yourself.
-
-## Reading tools
-
-Markdown supports headings, tables, lists, links, code blocks, and local images.
-Mermaid blocks render offline with zoom, fit, source, and dark-mode controls.
-Invalid diagrams retain their source with an error message.
-Text, JSON, YAML, CSV, and log files use a plain-text view.
-PDF, Word, and mathematical notation are not supported yet.
-
-The theme button and `leaf prefs theme dark` change the same saved preference.
-Your selected theme applies after browser and service restarts. Use `leaf prefs theme light` to change it back.
-
-The heading outline navigates within a document. **Source** shows raw Markdown.
-Drag tabs, or use the arrow buttons, to change their order.
-**Print** opens the browser print dialog, including PDF output.
-
-Leaf is a reader. It does not edit, rename, move, or delete document files.
-
-## Locations
-
-| Item | Location |
-| --- | --- |
-| Source | Your checkout (this installation: `~/leaf/`) |
-| Command | `~/.local/bin/leaf` |
-| Saved workspace | `~/.local/state/leaf-reader/workspace.json` |
-| Private service connection | `~/.local/state/leaf-reader/connection.json` |
-| Service log | `~/.local/state/leaf-reader/server.log` |
-| Upgrade backup | `~/.local/state/leaf-reader/backups/` |
-
-In this installation, the old app paths remain compatibility symlinks to `~/leaf`.
-Documents remain in their original locations. State contains paths and interface settings, not copies of document contents.
-The state file uses atomic replacement and owner-only file permissions. Python 3 is the only runtime dependency.
-
-## Agent use
-
-See [AGENT-CONTROL.md](AGENT-CONTROL.md) for the command contract and verification rules.
-Append `--json` to commands for structured output. Bare `leaf` and `leaf help` do not start the service.
-`leaf guide` and `leaf skill` work while stopped.
-
-The CLI distinguishes a durable **saved** result from browser-confirmed **applied** behavior.
-
-## Local access
-
-The server binds only to `127.0.0.1` and requires a private API token.
-It rejects foreign browser origins. Do not publish the connection file or expose the service through a tunnel.
-Document scripts are disabled. Leaf does not upload documents to external services or load remote images.
-External web links open when selected.
-
-Folder scans skip hidden entries, symlinks, and common dependency folders. Each file has a 10 MB reading limit.
-Folder scans support up to 20,000 files. Choose a smaller folder if this limit is exceeded.
-
-## Development
-
-`workspace.py` owns durable state and revision checks. `server.py` owns local transport and file grants.
-`leaf.py` implements the CLI. The React bridge synchronizes the browser with the saved workspace.
-`web/src/` implements the React reader, browser synchronization, and Mermaid rendering.
-
-Run validation from the app directory:
+Hover a collection and choose **Open** to open its documents as a group. Drag a document onto a collection or group
+to add it. Deleting a collection or group never touches the files.
 
 ```sh
-python3 -m unittest discover -p 'test_*.py' -v
-npm --prefix web run build
+leaf collection new Plans --parent Atlas
+leaf collection open Atlas                    # open Atlas and its sub-collections as a tab group
+leaf group close Review                       # put a group's tabs away
+leaf group open Review                        # restore them, positions included
 ```
 
-Frontend dependencies and exact versions are recorded in `web/package.json` and `web/package-lock.json`.
-Their upstream license files are installed under `web/node_modules/` by npm.
+## Keyboard
 
-## Project groups and typography
-
-Use `leaf group new Project --color blue`, then `leaf open plan.md --group Project`.
-`leaf group close Project` saves the group's tabs; `leaf group open Project` restores them.
-`leaf group list --json` lists stable IDs and saved groups. Group removal never deletes document files.
-Use `leaf reader --font-size 18 --width wide --font serif` to save reader settings.
-`leaf prefs theme system` follows the browser's system color scheme in the React UI.
-See [API.md](API.md) for frontend integration and action contracts.
+| Key | Action | Key | Action |
+| --- | --- | --- | --- |
+| <kbd>⌘</kbd> <kbd>K</kbd> | Command palette | <kbd>[</kbd> <kbd>]</kbd> | Previous or next tab |
+| <kbd>⌘</kbd> <kbd>\\</kbd> | Toggle sidebar | <kbd>1</kbd>–<kbd>9</kbd> | Jump to a tab |
+| <kbd>⌘</kbd> <kbd>.</kbd> | Toggle outline | <kbd>x</kbd> | Close tab |
+| <kbd>/</kbd> | Filter the sidebar | <kbd>s</kbd> | Toggle Markdown source |
+| <kbd>o</kbd> | Open a document by path | <kbd>t</kbd> | Toggle light and dark |
 
 ## Aboard artifacts
 
-With the Aboard CLI installed and connected, open an accessible board file directly:
+With the Aboard CLI installed and connected, open a board file directly:
 
 ```sh
 leaf open aboard://leaf/notes/ui-plan.md --server aboard
@@ -180,16 +142,46 @@ leaf open aboard://leaf/notes/ui-plan.md@v1 --server aboard
 leaf refresh --aboard
 ```
 
-Leaf creates a group named after the board and displays the board and downloaded version above the document.
-Use `--group NAME` to choose an existing group. Aboard retains responsibility for authentication and board access.
-Downloads are cached privately under the Leaf state directory; your original documents are never overwritten.
-Unpinned files update on explicit refresh. Pinned `@vN` files retain that version. No remote polling runs in the background.
-Relative attachments and board links are not downloaded automatically. Refresh is available through the CLI; a UI button can follow later.
+Leaf caches the download privately, shows the board and version above the document, and groups board files under the
+board's name unless you pass `--group`. Unpinned files update on explicit refresh; pinned `@vN` files stay fixed.
 
-## Collections
+## Your saved workspace
 
-Collections are nested virtual folders that reference documents across projects. Nothing moves on disk.
-Create one with `leaf collection new Atlas --paths /path/plan.md` and nest another with `leaf collection new Plans --parent Atlas`.
-`leaf collection open Atlas` opens its documents and descendants as a tab group.
-Use `leaf collection list --json` or `leaf help collection` to inspect the library and commands.
-Deleting a collection removes references, not source files or already-open tabs.
+Tabs, their order and reading positions, groups, collections, sidebar folders, recent paths, and reader settings are
+saved automatically and survive restarts. All connected browser windows show the same workspace, and a stale window
+cannot overwrite a newer change. If a saved file goes missing, its tab stays; restore the file and run `leaf refresh`.
+
+| Item | Location |
+| --- | --- |
+| Command | `~/.local/bin/leaf` |
+| Saved workspace | `~/.local/state/leaf-reader/workspace.json` |
+| Private service connection | `~/.local/state/leaf-reader/connection.json` |
+| Service log | `~/.local/state/leaf-reader/server.log` |
+
+## Privacy and security
+
+- The service binds only to `127.0.0.1`, requires a private token, and rejects foreign origins. Do not expose it through a tunnel.
+- Leaf reads only files you open and never uploads them. Remote images stay unloaded; web links open only when selected.
+- Markdown is sanitised, documents cannot run scripts, and Mermaid diagrams render as isolated images.
+- Folder scans skip hidden entries, symlinks, and dependency folders, with a 10 MB limit per file and 20,000 files per folder.
+
+## Development
+
+```text
+leaf.py        CLI              workspace.py   durable state and revisions
+server.py      local service    groups.py      tab groups and collections
+web/           React + Vite + TypeScript + Tailwind + shadcn/ui interface
+```
+
+```sh
+python3 -m unittest discover -p 'test_*.py' -v
+npm --prefix web run build
+leaf restart                                  # pick up Python changes; refresh the browser for UI changes
+```
+
+For an isolated instance that leaves your real workspace alone, run
+`LEAF_STATE_DIR=/tmp/leaf-dev python3 server.py --port 18765`.
+
+The installer points the `leaf` command at this checkout, so keep it in place. After moving it or changing Python
+installations, run `python3 install.py` again. To uninstall, run `leaf stop` and remove `~/.local/bin/leaf`; your
+documents and saved workspace are untouched.
