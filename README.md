@@ -33,8 +33,10 @@ scratch folders, and shared boards. Leaf gathers it into one persistent reading 
 - **Tab groups** keep a project's open documents together, and can be closed and reopened as one.
 - **Every action is a command.** Anything you can click, an agent can do with `leaf …`, so "open that in Leaf" just works.
 - **Live reload.** When an agent rewrites a document you are reading, it updates in place and keeps your position.
+- **Comments.** Select text and leave a comment, Google Docs style. Agents read the threads with `leaf comments`,
+  edit the file, and reply or resolve, so you can iterate on a document with any agent.
 
-Leaf is a reader. It never edits, moves, or deletes your files.
+Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in the documents.
 
 ## Features
 
@@ -132,6 +134,7 @@ leaf group open Review                        # restore them, positions included
 | <kbd>⌘</kbd> <kbd>.</kbd> | Toggle outline | <kbd>x</kbd> | Close tab |
 | <kbd>/</kbd> | Filter the sidebar | <kbd>s</kbd> | Toggle Markdown source |
 | <kbd>o</kbd> | Open a document by path | <kbd>t</kbd> | Toggle light and dark |
+| <kbd>c</kbd> or <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>M</kbd> | Comment on the selection | | |
 
 ## Aboard artifacts
 
