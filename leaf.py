@@ -10,6 +10,7 @@ import time
 from urllib.request import Request, urlopen
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
+from versions_cli import COMMANDS as VERSION_COMMANDS
 
 BASE = Path(__file__).resolve().parent
 RUNTIME = Path(os.environ.get('LEAF_STATE_DIR', str(Path.home() / '.local/state/leaf-reader')))
@@ -123,6 +124,9 @@ def make_parser():
     parser.add_argument('--json', action='store_true', help='Print machine-readable results')
     commands = parser.add_subparsers(dest='action', metavar='COMMAND')
     descriptions = {
+        'checkout': 'Record an advisory edit base', 'checkin': 'Sign native edits and check for lost changes',
+        'history': 'List observed document versions', 'diff': 'Compare document versions',
+        'merge': 'Merge a competing version into disk', 'restore': 'Restore a version with a fresh CAS check',
         'ui': 'Start Leaf and open the browser', 'start': 'Start the background service',
         'stop': 'Stop the service, retaining your workspace', 'restart': 'Restart with saved tabs and folders',
         'status': 'Show service status and installation paths', 'state': 'Show the saved workspace',
@@ -199,6 +203,9 @@ def make_parser():
                     item.add_argument('--index', type=int)
                 if operation == 'open':
                     item.add_argument('--no-recursive', action='store_false', dest='recursive', default=True)
+        if name in VERSION_COMMANDS:
+            from versions_cli import configure
+            configure(child, name)
         if name in ('comments', 'comment'):
             from comments_cli import configure
             configure(child, name)
@@ -263,6 +270,10 @@ def main():
         path = BASE / ('AGENT-CONTROL.md' if args.action == 'guide' else 'skills/leaf/SKILL.md')
         content = path.read_text()
         output({'path': str(path), 'content': content} if args.json else content, args.json)
+        return
+    if args.action in VERSION_COMMANDS:
+        from versions_cli import run
+        run(args, sys.modules[__name__])
         return
     if args.action in ('comments', 'comment'):
         from comments_cli import run

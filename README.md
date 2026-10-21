@@ -74,7 +74,7 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 ## Quick start
 
 Requires macOS or Linux, Python 3.10 or newer, and a modern browser. Building the interface needs Node.js and npm;
-running a built installation needs only Python.
+running a built installation needs Python. Three-way merge uses `diff3` (included on macOS; install `diffutils` on Linux).
 
 ```sh
 git clone https://github.com/leonidas1712/leaf.git ~/leaf
@@ -149,6 +149,27 @@ leaf refresh --aboard
 Leaf caches the download privately, shows the board and version above the document, and groups board files under the
 board's name unless you pass `--group`. Unpinned files update on explicit refresh; pinned `@vN` files stay fixed.
 
+## Document editing and history
+
+Leaf keeps observed document versions locally. Agents can use their usual file tools and sign changes:
+
+```sh
+leaf checkout /path/plan.md --author codex
+# Edit the file, then review it.
+leaf checkin /path/plan.md --author codex -m 'Clarified the plan'
+leaf history /path/plan.md
+leaf diff /path/plan.md
+leaf restore /path/plan.md v12 --author codex
+```
+
+Browser saves reject stale content hashes. Merge and restore record recoverable snapshots.
+`leaf merge PATH --base vN --theirs vM` combines versions; overlapping changes need manual resolution.
+Aboard cached files remain read-only. Read [the agent guide](AGENT-CONTROL.md#edit-with-document-history) for the full workflow.
+
+History contains full document text. Leaf retains recent snapshots, the latest 200 versions, and active checkout bases.
+Observation can miss intermediate native writes. Checkout is advisory, and native tools can race a save's final replacement.
+Keep independent backups for important documents.
+
 ## Your saved workspace
 
 Tabs, their order and reading positions, groups, collections, sidebar folders, recent paths, and reader settings are
@@ -160,6 +181,7 @@ cannot overwrite a newer change. If a saved file goes missing, its tab stays; re
 | Command | `~/.local/bin/leaf` |
 | Saved workspace | `~/.local/state/leaf-reader/workspace.json` |
 | Private service connection | `~/.local/state/leaf-reader/connection.json` |
+| Document history | `~/.local/state/leaf-reader/history/versions.sqlite3` |
 | Service log | `~/.local/state/leaf-reader/server.log` |
 
 ## Privacy and security

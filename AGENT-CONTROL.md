@@ -61,7 +61,7 @@ Failed or expired live commands must not be described as successful.
 The default state directory is `~/.local/state/leaf-reader`. `LEAF_STATE_DIR` overrides it for isolated tests.
 Keep `connection.json` private: it contains the local API token. Never print or commit it.
 The service binds to loopback, checks browser origins, and reads only granted files.
-Do not expose it through a tunnel. Leaf does not edit source documents.
+Do not expose it through a tunnel. Explicit editing commands can write known local source documents.
 
 ## Skill and development
 
@@ -208,3 +208,46 @@ leaf reveal /path/project --json
 Reveal opens the system file manager for a path Leaf already knows. It does not change tabs or saved revisions.
 macOS selects the target in Finder. Linux opens the folder or the parent of a file.
 Missing or unknown paths return an error. Open a document or add its folder before revealing it.
+
+## Edit with document history
+
+Leaf records observed versions in a private SQLite database under `history/versions.sqlite3` in its state directory.
+Source files remain the truth. Agents edit them with their usual tools.
+
+```sh
+leaf checkout /path/plan.md --author codex --json
+# Edit /path/plan.md with your normal tools.
+leaf checkin /path/plan.md --author codex -m 'Clarified the rollout' --json
+leaf history /path/plan.md --json
+leaf diff /path/plan.md
+leaf diff /path/plan.md v12 v14
+leaf merge /path/plan.md --base v12 --theirs v14 --author codex --json
+leaf restore /path/plan.md v12 -m 'Restore the earlier wording' --author codex --json
+```
+
+Pass your own name. The CLI defaults to `LEAF_AUTHOR`, then `agent`.
+History commands start the service without opening a browser. Open an unknown document in Leaf before using them.
+Checkout records an advisory base and warns when another author has declared an edit. It does not lock the file.
+Repeated checkout by the same author retains the original base. Checkin signs the current snapshot and clears that author's checkout on success.
+Version IDs are opaque, database-wide identifiers. Always supply the document path with an ID.
+
+An `overwrote` result means a three-way comparison found possibly lost changes in an observed competing version.
+Checkin returns exit code 1 and retains the checkout base. Inspect `overwritten` and `theirs`, then merge with explicit versions.
+Merge writes a snapshot and records a new checkout base. Overlapping changes produce conflict markers and exit code 1.
+Resolve those markers, review the resulting file, then check in again. A comment resolution can cite the resulting version ID.
+Merge and competing-edit checks require `diff3`, included on macOS and available from Linux `diffutils`.
+
+The browser saves with a SHA-256 hash of the bytes it loaded. A stale hash returns HTTP 409 and the current text.
+Restore and merge also check the current hash before writing. Writes use a temporary file and atomic replacement, retaining file permissions.
+Only supported UTF-8 documents up to 10 MiB can be edited. Leaf state files and Aboard cached documents remain read-only.
+All connected readers share one disk document; browser drafts are separate from saved history.
+
+The service observes registered files, tabs, and collection documents every second while running.
+Reads, registration, saves, and history operations also capture snapshots. Identical consecutive bytes share one version.
+Leaf retains the latest 200 versions, versions younger than 30 days, and active checkout bases. Pruning occurs when a snapshot is added.
+Snapshots include full document contents. Protect the state directory and include it in backups if history matters.
+
+Observation can miss intermediate writes, including changes while Leaf is stopped. History is not a replacement for backups.
+Native tools do not share Leaf's lock. An external write racing the final file replacement cannot be fully excluded.
+Attribution and presence are advisory. Anonymous snapshots can cause conservative overwrite warnings; unobserved changes cannot cause a warning.
+Checkin compares the latest observed competing content that differs from current disk bytes; it does not prove all earlier edits survived.

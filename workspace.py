@@ -17,7 +17,7 @@ def empty_workspace():
     return {'version': 1, 'revision': 0, 'folders': [], 'files': [], 'tabs': [], 'active': None,
             'recentFiles': [], 'recentFolders': [], 'theme': 'light', 'source': False,
             'search': '', 'sidebarWidth': 280, 'expanded': [], 'groups': [], 'sources': {}, 'collections': [], 'comments': [],
-            'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}}
+            'editing': {}, 'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}}
 
 
 def normalize_view(view):

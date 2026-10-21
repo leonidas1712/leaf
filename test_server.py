@@ -306,5 +306,55 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(json.loads(body)['workspace']['theme'], 'dark')
 
 
+    def test_editing_http_and_cli_conflicts(self):
+        """Authenticated save, checkout, history, diff and restore preserve stale-save conflicts."""
+        import os
+        import subprocess
+        import sys
+        from urllib.parse import urlencode
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            runtime = root / 'state'
+            runtime.mkdir()
+            path = root / 'plan.md'
+            path.write_bytes(b'first\r\nsecond\r\n')
+            workspace = Workspace(runtime / 'workspace.json')
+            workspace.action({'action': 'open-file', 'path': str(path)})
+            (runtime / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            headers = {'X-Leaf-Token': server.TOKEN}
+            query = '/api/versions?' + urlencode({'path': str(path)})
+            with patch.object(server, 'WORKSPACE', workspace):
+                self.assertEqual(self.request(query)[0], 403)
+                code, body = self.request(query, headers=headers)
+                self.assertEqual(code, 200)
+                original = json.loads(body)['current']
+                command = [sys.executable, str(server.BASE / 'leaf.py')]
+                env = dict(os.environ, LEAF_STATE_DIR=str(runtime), LEAF_AUTHOR='codex')
+                checked = subprocess.run(command + ['checkout', str(path), '--json'], env=env, capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
+                self.assertEqual(json.loads(checked.stdout)['presence']['base'], original['version'])
+                payload = {'path': str(path), 'base': original['hash'], 'text': 'changed\n'}
+                self.assertEqual(self.request('/api/save', payload)[0], 403)
+                self.assertEqual(self.request('/api/save', payload, dict(headers, Origin='https://invalid.test'))[0], 403)
+                code, body = self.request('/api/save', payload, headers)
+                self.assertEqual(code, 200, body)
+                saved = json.loads(body)['version']
+                code, body = self.request('/api/save', payload, headers)
+                self.assertEqual(code, 409)
+                self.assertEqual(json.loads(body)['current']['text'], 'changed\n')
+                snapshot = '/api/version?' + urlencode({'path': str(path), 'id': original['version']})
+                self.assertEqual(self.request(snapshot, headers=headers)[1], b'first\r\nsecond\r\n')
+                diff = subprocess.run(command + ['diff', str(path), original['version'], saved['id']], env=env, capture_output=True, text=True)
+                self.assertEqual(diff.returncode, 0, diff.stderr)
+                self.assertIn('+changed', diff.stdout)
+                restored = subprocess.run(command + ['restore', str(path), original['version'], '--json'], env=env, capture_output=True, text=True)
+                self.assertEqual(restored.returncode, 0, restored.stderr)
+                self.assertEqual(path.read_bytes(), b'first\r\nsecond\r\n')
+                self.assertEqual(json.loads(restored.stdout)['version']['kind'], 'restore')
+                self.assertEqual(self.request('/api/save', dict(payload, path=str(root / 'unknown.md')), headers)[0], 400)
+                server.EDITOR.store.close()
+                server.EDITOR = None
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -13,6 +13,9 @@ import fcntl
 from workspace import Workspace, TEXT_EXTENSIONS
 from comments import list_comments
 from reveal import reveal_path
+from editing import Editing, ACTIONS
+from versions import Changed
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -30,6 +33,29 @@ COMMANDS = {}
 FILES = {}
 ROOTS = {}
 COMMENT_REVISIONS = set()
+EDITOR = None
+
+
+def editor():
+    """Reuse the history store only while its workspace instance remains current."""
+    global EDITOR
+    if EDITOR is None or EDITOR.workspace is not WORKSPACE:
+        if EDITOR is not None:
+            EDITOR.store.close()
+        EDITOR = Editing(WORKSPACE, FILES)
+    return EDITOR
+
+
+def watch_documents(stop):
+    """Observe registered files once per second while the service is running."""
+    while not stop.wait(1):
+        with LOCK:
+            try:
+                editor().observe()
+            except (OSError, sqlite3.Error):
+                # A later observation retries transient storage failures; API writes still report errors.
+                continue
+
 
 
 def grant_file(path):
@@ -174,6 +200,13 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == '/api/status':
                 with LOCK:
                     self.respond({'app': 'leaf', 'version': 2, 'pid': os.getpid(), 'url': f'http://127.0.0.1:{self.server.server_port}', 'workspace': WORKSPACE.data, 'readers': live_sessions()})
+            elif url.path in ('/api/versions', '/api/version'):
+                with LOCK:
+                    path = editor().path(query.get('path', [''])[0])
+                    if url.path == '/api/versions':
+                        self.respond(editor().store.history(path))
+                    else:
+                        self.respond(editor().store.content(path, query.get('id', [''])[0]).encode('utf-8'), content_type='text/plain; charset=utf-8')
             elif url.path == '/api/comments':
                 with LOCK:
                     paths = None if query.get('all') == ['true'] else (query.get('path') or [WORKSPACE.data['active']])
@@ -198,7 +231,15 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('File grant is unavailable.')
                 if path.stat().st_size > 10 * 1024 * 1024:
                     raise ValueError('File exceeds the 10 MB reading limit.')
-                self.respond(path.read_bytes(), content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+                with LOCK:
+                    raw = path.read_bytes()
+                    if path.suffix.lower() in TEXT_EXTENSIONS:
+                        try:
+                            raw.decode('utf-8')
+                            editor().store.record(path, raw)
+                        except UnicodeError:
+                            pass
+                    self.respond(raw, content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
             elif url.path == '/api/library':
                 root = ROOTS.get(query.get('id', [''])[0])
                 if not root:
@@ -223,7 +264,7 @@ class Handler(BaseHTTPRequestHandler):
                 if name == 'index.html':
                     data = data.replace(b'__LEAF_TOKEN__', TOKEN.encode())
                 self.respond(data, content_type=mimetypes.guess_type(name)[0] or 'application/octet-stream')
-        except (ValueError, OSError) as error:
+        except (ValueError, OSError, sqlite3.Error) as error:
             self.respond({'error': str(error)}, 400)
 
     def do_POST(self):
@@ -232,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 1024 * 1024:
+            if not 0 < length <= (64 * 1024 * 1024 if self.path == '/api/save' else 1024 * 1024):
                 raise ValueError('Invalid request size.')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
@@ -243,9 +284,16 @@ class Handler(BaseHTTPRequestHandler):
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                 elif self.path == '/api/reveal':
                     self.respond(reveal_path(data.get('path'), WORKSPACE.data, FILES.values()))
+                elif self.path == '/api/save':
+                    self.respond(editor().save(data))
+                elif self.path == '/api/action' and data.get('action') in ACTIONS:
+                    result = editor().action(data)
+                    self.respond({'status': 'saved', 'revision': WORKSPACE.data['revision'], 'workspace': WORKSPACE.data, **result})
                 elif self.path == '/api/action':
                     previous_revision = WORKSPACE.data['revision']
                     workspace = WORKSPACE.action(data)
+                    if not data['action'].startswith('comment-'):
+                        editor().observe()
                     if data['action'].startswith('comment-') and workspace['revision'] != previous_revision:
                         COMMENT_REVISIONS.add(workspace['revision'])
                         COMMENT_REVISIONS.intersection_update(range(max(0, workspace['revision'] - 1000), workspace['revision'] + 1))
@@ -308,7 +356,9 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({'id': key})
                 else:
                     self.respond({'error': 'Not found'}, 404)
-        except (ValueError, KeyError, TypeError, OSError) as error:
+        except Changed as error:
+            self.respond({'error': 'changed', 'current': error.current}, 409)
+        except (ValueError, KeyError, TypeError, OSError, sqlite3.Error) as error:
             self.respond({'error': str(error)}, 400)
 
 
@@ -335,12 +385,20 @@ def main():
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, 'w') as stream:
         json.dump({'url': f'http://127.0.0.1:{args.port}', 'token': TOKEN, 'pid': os.getpid()}, stream)
+    with LOCK:
+        editor().presence()
+        editor().observe()
+    watch_stop = threading.Event()
+    watcher = threading.Thread(target=watch_documents, args=(watch_stop,), daemon=True)
+    watcher.start()
     print(f'Leaf is ready at http://127.0.0.1:{args.port}', flush=True)
     if args.open:
         threading.Timer(0.2, webbrowser.open, args=(f'http://127.0.0.1:{args.port}',)).start()
     try:
         server.serve_forever()
     finally:
+        watch_stop.set()
+        watcher.join(timeout=5)
         server.server_close()
         lock.close()
 

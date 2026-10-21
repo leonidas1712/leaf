@@ -151,3 +151,41 @@ A granted file inside a current sidebar folder is also allowed. Unlisted files i
 Resolved paths enforce containment. Symlinks cannot grant access outside a sidebar folder.
 macOS runs `open -R PATH`. Linux runs `xdg-open` on the folder or the parent of a file.
 Commands use argument lists without a shell. The response confirms command success, not visible file-manager state.
+
+## Editing and observed versions
+
+All routes use the existing Host, Origin, and token checks. Paths must name known supported text documents.
+History lives in private `history/versions.sqlite3`; source documents remain on disk.
+
+- `GET /api/versions?path=ABS`: `{current:{hash,version},versions:[metadata]}`, newest first. It observes disk before responding.
+- `GET /api/version?path=ABS&id=vN`: exact UTF-8 snapshot text, scoped to the path.
+- `POST /api/save`: `{path,base,text,author?,note?}`. `base` is `sha256:` plus the lowercase digest of exact bytes.
+- Successful save: `{version:metadata}`. Metadata includes `id,hash,at,author,kind,note,added,removed`.
+- Stale save: HTTP 409 `{error:"changed",current:{hash,version,text}}`. The proposed text is not written.
+- Invalid, unknown, read-only, oversized, or non-UTF-8 targets return HTTP 400.
+
+History metadata adds `base:boolean` for versions pinned by active checkouts. Timestamps use ISO-8601 UTC.
+`kind` is `external`, `save`, `checkin`, or `restore`. Checkin may annotate an unchanged anonymous snapshot.
+Consecutive identical bytes do not create another version. IDs are database-wide and remain scoped to their document in requests.
+
+Editing actions use `POST /api/action`:
+
+| Action | Fields | Result additions |
+| --- | --- | --- |
+| `edit-start` | path, author | presence, optional warning |
+| `edit-end` | path, author | clears only that author's checkout |
+| `checkin` | path, author, note? | status ok/overwrote, version, base, overwritten, theirs, message |
+| `diff` | path, author?, left?, right? | unified diff, base, current |
+| `merge` | path, author?, base?, theirs? | status merged/conflicts, version, conflicts, theirs |
+| `restore` | path, version, base hash, author?, note? | version |
+
+Action responses include the current workspace and revision. `workspace.editing` maps paths to `{author,since,base}`.
+Multiple authors can retain bases; this map displays the most recent declaration. Presence changes may advance the workspace revision.
+Browser sync cannot replace presence. Presence is advisory and survives service restarts until released or checked in.
+Save defaults to author `you`. CLI commands pass their explicit or environment-selected author.
+Restore reads the selected snapshot and uses the supplied hash for CAS. Merge snapshots its result before establishing a new checkout base.
+
+The save request limit allows JSON escaping overhead; decoded text is limited to 10 MiB of UTF-8.
+The service serializes its writes, rechecks disk immediately before replacement, and preserves file mode.
+Native file tools do not share this lock. An external write racing the final replacement remains possible.
+See AGENT-CONTROL.md for observation, retention, conservative overwrite checks, and recovery steps.

@@ -77,3 +77,25 @@ A `changed` location identifies replacement text by its old surroundings. Inspec
 
 Use `leaf reveal PATH --json` to show a known document or folder in the system file manager.
 This command does not change tabs or workspace state. Unknown or missing paths return an error.
+
+## Native editing with history
+
+Use your native file tools, with Leaf recording the edit base and attribution:
+
+```sh
+leaf checkout /path/plan.md --author codex --json
+# Edit with your usual tools, then review the result.
+leaf checkin /path/plan.md --author codex -m 'Describe the change' --json
+leaf history /path/plan.md --json
+leaf diff /path/plan.md
+```
+
+Pass your own agent name. The default is `LEAF_AUTHOR`, then `agent`.
+If checkin returns `overwrote`, inspect the competing version and run `leaf merge PATH --base vN --theirs vM --author codex`.
+Resolve conflict markers, review, then check in again. Merge conflicts and possible overwritten edits return exit code 1.
+`leaf restore PATH vN --author codex -m 'Reason'` restores through a fresh content-hash check and records the result.
+Open unknown documents first. Aboard cached files remain read-only.
+
+Presence is advisory; checkout does not lock native tools. Leaf captures observed versions, not every intermediate filesystem write.
+Native writes can race the final replacement. Read `leaf guide` for limits, retention, and recovery details.
+Snapshots contain full document text in Leaf's private state directory. They are not uploaded to Aboard.
