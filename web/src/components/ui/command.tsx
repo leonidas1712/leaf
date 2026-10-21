@@ -36,13 +36,17 @@ function CommandDialog({
   className,
   showCloseButton = false,
   shouldFilter,
+  value,
+  onValueChange,
   ...props
-}: React.ComponentProps<typeof Dialog> & {
+}: Omit<React.ComponentProps<typeof Dialog>, 'value' | 'onValueChange'> & {
   title?: string
   description?: string
   className?: string
   showCloseButton?: boolean
   shouldFilter?: boolean
+  value?: string
+  onValueChange?: (value: string) => void
 }) {
   return (
     <Dialog {...props}>
@@ -54,7 +58,7 @@ function CommandDialog({
         className={cn("overflow-hidden p-0 shadow-float", className)}
         showCloseButton={showCloseButton}
       >
-        <Command shouldFilter={shouldFilter} className="**:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-faint [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-4 [&_[cmdk-input-wrapper]_svg]:w-4 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:h-9 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4">
+        <Command shouldFilter={shouldFilter} value={value} onValueChange={onValueChange} className="**:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-faint [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-4 [&_[cmdk-input-wrapper]_svg]:w-4 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:h-9 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4">
           {children}
         </Command>
       </DialogContent>

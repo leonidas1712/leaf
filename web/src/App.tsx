@@ -37,22 +37,27 @@ function onKey(event: KeyboardEvent) {
     setState({ outlineOpen: !outlineOpen })
     return
   }
-  if (mod || event.altKey || typing(event.target) || paletteOpen || getState().openDialog || !workspace) return
+  if (mod || event.altKey || typing(event.target) || paletteOpen || getState().openDialog || getState().groupDialog || !workspace) return
   const key = event.key
-  if (key === '/') {
-    event.preventDefault()
-    setState({ sidebarOpen: true })
-    requestAnimationFrame(() => document.getElementById('sidebar-filter')?.focus())
-  } else if (key === '[') stepTab(-1)
-  else if (key === ']') stepTab(1)
-  else if (key === 'x' && workspace.active) actions.close(workspace.active)
-  else if (key === 's' && workspace.active) actions.view(!workspace.source)
-  else if (key === 't') actions.theme(resolveTheme(workspace.theme) === 'dark' ? 'light' : 'dark')
-  else if (key === 'o') setState({ openDialog: 'open-file' })
-  else if (/^[1-9]$/.test(key)) {
-    const tab = key === '9' ? workspace.tabs.at(-1) : workspace.tabs[Number(key) - 1]
-    if (tab) actions.focus(tab.path)
+  const active = workspace.active
+  const bindings: Record<string, (() => unknown) | undefined> = {
+    '/': () => {
+      setState({ sidebarOpen: true })
+      requestAnimationFrame(() => document.getElementById('sidebar-filter')?.focus())
+    },
+    '[': () => stepTab(-1),
+    ']': () => stepTab(1),
+    x: active ? () => actions.close(active) : undefined,
+    s: active ? () => actions.view(!workspace.source) : undefined,
+    t: () => actions.theme(resolveTheme(workspace.theme) === 'dark' ? 'light' : 'dark'),
+    o: () => setState({ openDialog: 'open-file' }),
   }
+  const tab = /^[1-9]$/.test(key) ? (key === '9' ? workspace.tabs.at(-1) : workspace.tabs[Number(key) - 1]) : undefined
+  const run = bindings[key] ?? (tab ? () => actions.focus(tab.path) : undefined)
+  if (!run) return
+  // Consume the key so it never lands in a field the shortcut focuses (the path dialog, the filter).
+  event.preventDefault()
+  run()
 }
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')

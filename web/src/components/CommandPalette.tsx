@@ -13,20 +13,27 @@ import {
 import { basename, displayPath } from '@/lib/paths'
 import { actions, getState, setState, TEXT_FILE, useLeaf } from '@/lib/store'
 
-/** Subsequence match with a bonus for hits in the file name and at word starts. */
+/**
+ * Rank a path for a query: file-name substring beats path substring beats a subsequence of
+ * the file name. Subsequences never span directories, so "second.md" can't match an unrelated
+ * file whose folders happen to contain those letters in order.
+ */
 function score(path: string, query: string) {
   const name = basename(path).toLowerCase()
-  const haystack = path.toLowerCase()
+  if (name === query) return 3000
+  if (name.startsWith(query)) return 2000 - name.length / 100
   if (name.includes(query)) return 1000 - name.indexOf(query) - name.length / 100
+  const at = path.toLowerCase().indexOf(query)
+  if (at >= 0) return 500 - at / 100
   let position = -1
-  let total = 0
+  let total = 100
   for (const char of query) {
-    const next = haystack.indexOf(char, position + 1)
+    const next = name.indexOf(char, position + 1)
     if (next < 0) return -1
-    total += next === position + 1 ? 3 : /[/._ -]/.test(haystack[next - 1] ?? '') ? 2 : 0
+    total += next === position + 1 ? 3 : /[._ -]/.test(name[next - 1] ?? '') ? 2 : 0
     position = next
   }
-  return total - haystack.length / 200
+  return total - name.length / 100
 }
 
 export function CommandPalette() {
@@ -35,24 +42,27 @@ export function CommandPalette() {
   const entries = useLeaf((s) => s.entries)
   const sidebarOpen = useLeaf((s) => s.sidebarOpen)
   const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState('')
   const needle = query.trim().toLowerCase()
 
-  const documents = useMemo(() => [...entries.keys()].filter((path) => TEXT_FILE.test(path)), [entries])
+  // Open tabs and every granted document, ranked together so the best match leads.
   const matches = useMemo(() => {
-    if (!needle) return []
-    return documents
+    if (!needle || !workspace) return []
+    const paths = new Set([...workspace.tabs.map((tab) => tab.path), ...[...entries.keys()].filter((path) => TEXT_FILE.test(path))])
+    return [...paths]
       .map((path) => [path, score(path, needle)] as const)
       .filter(([, value]) => value >= 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 40)
       .map(([path]) => path)
-  }, [documents, needle])
+  }, [entries, needle, workspace])
 
   if (!workspace) return null
-  const tabs = workspace.tabs.filter((tab) => !needle || score(tab.path, needle) >= 0)
+  const openPaths = new Set(workspace.tabs.map((tab) => tab.path))
   const close = () => {
     setState({ paletteOpen: false })
     setQuery('')
+    setSelected('')
   }
   const run = (work: () => unknown) => () => {
     close()
@@ -93,6 +103,16 @@ export function CommandPalette() {
     if (first) actions.focus(first.path)
   }
 
+  // cmdk can't rank results it doesn't filter, so selection follows the first ranked item.
+  const first = needle
+    ? matches[0]
+      ? 'doc:' + matches[0]
+      : groups[0]
+        ? 'group:' + groups[0].id
+        : commands[0] && 'cmd:' + commands[0].label
+    : workspace.tabs[0] && 'doc:' + workspace.tabs[0].path
+  const documents = needle ? matches : workspace.tabs.map((tab) => tab.path)
+
   return (
     <CommandDialog
       open={open}
@@ -100,28 +120,33 @@ export function CommandPalette() {
       title="Command palette"
       description="Switch tabs, open documents, and run commands"
       shouldFilter={false}
+      value={selected || first || ''}
+      onValueChange={setSelected}
       className="top-[18%] translate-y-0 sm:max-w-[600px]"
     >
-      <CommandInput value={query} onValueChange={setQuery} placeholder="Search documents, tabs and commands…" />
+      <CommandInput
+        value={query}
+        onValueChange={(value) => {
+          setQuery(value)
+          setSelected('')
+        }}
+        placeholder="Search documents, tabs and commands…"
+      />
       <CommandList className="max-h-[min(460px,60vh)]">
         <CommandEmpty>No documents or commands match.</CommandEmpty>
-        {tabs.length > 0 && (
-          <CommandGroup heading="Open tabs">
-            {tabs.map((tab) => (
-              <CommandItem key={'tab:' + tab.path} value={'tab:' + tab.path} onSelect={run(() => actions.focus(tab.path))}>
-                <FileText className={tab.path === workspace.active ? 'text-leaf' : undefined} />
-                <span className="truncate">{basename(tab.path)}</span>
-                <span className="ml-auto max-w-[45%] truncate text-[11.5px] text-ink-faint">{displayPath(tab.path)}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        {matches.length > 0 && (
-          <CommandGroup heading="Documents">
-            {matches.map((path) => (
-              <CommandItem key={'doc:' + path} value={'doc:' + path} onSelect={run(() => actions.open(path))}>
-                <FileText />
+        {documents.length > 0 && (
+          <CommandGroup heading={needle ? 'Documents' : 'Open tabs'}>
+            {documents.map((path) => (
+              <CommandItem
+                key={'doc:' + path}
+                value={'doc:' + path}
+                onSelect={run(() => (openPaths.has(path) ? actions.focus(path) : actions.open(path)))}
+              >
+                <FileText className={path === workspace.active ? 'text-leaf' : undefined} />
                 <span className="truncate">{basename(path)}</span>
+                {needle && openPaths.has(path) && (
+                  <span className="shrink-0 rounded bg-accent px-1.5 text-[10.5px] text-ink-muted">open</span>
+                )}
                 <span className="ml-auto max-w-[50%] truncate text-[11.5px] text-ink-faint">{displayPath(path)}</span>
               </CommandItem>
             ))}
