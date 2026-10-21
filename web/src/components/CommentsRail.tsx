@@ -71,12 +71,12 @@ export function CommentsRail({
     const items: Placed[] = comments.map((comment) => {
       if (!comment.anchor) return { comment, placement: 'document', range: null }
       const found = resolve(comment.anchor, index)
-      if (found.state === 'detached') return { comment, placement: 'detached', range: null }
+      if (found.state === 'detached' || found.state === 'ambiguous') return { comment, placement: found.state, range: null }
       return { comment, placement: found.state, range: rangeBetween(index, found.start, found.end) }
     })
     if (draft?.path === path) {
       const found = draft.anchor ? resolve(draft.anchor, index) : null
-      const range = found && found.state !== 'detached' ? rangeBetween(index, found.start, found.end) : null
+      const range = found && 'start' in found ? rangeBetween(index, found.start, found.end) : null
       items.push({ comment: 'draft', placement: range ? 'attached' : 'document', range })
     }
     return items

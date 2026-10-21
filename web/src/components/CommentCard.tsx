@@ -214,7 +214,13 @@ function Entry({ comment, entry, first }: { comment: Comment; entry: CommentRepl
   )
 }
 
-export type Placement = 'attached' | 'moved' | 'detached' | 'document'
+export type Placement = 'attached' | 'moved' | 'ambiguous' | 'detached' | 'document'
+
+const PLACEMENT_NOTE: Partial<Record<Placement, string>> = {
+  moved: 'The commented text has changed',
+  ambiguous: 'This text now appears more than once; select the right one and attach',
+  detached: 'This text is no longer in the document',
+}
 
 /**
  * One comment thread: the first message, then every reply and status change in order, so the
@@ -244,11 +250,11 @@ export function CommentCard({
         resolved && !active && 'opacity-70',
       )}
     >
-      {(placement === 'detached' || placement === 'moved') && comment.anchor && (
+      {PLACEMENT_NOTE[placement] && comment.anchor && (
         <div className="grid gap-1 rounded-md bg-accent/60 px-2 py-1.5">
           <span className="flex items-center gap-1 text-[11px] font-medium text-ink-muted">
             <TriangleAlert className="size-3" />
-            {placement === 'detached' ? 'This text is no longer in the document' : 'The commented text has changed'}
+            {PLACEMENT_NOTE[placement]}
           </span>
           <q className="line-clamp-3 text-[12px] text-ink-faint italic">{comment.anchor.quote}</q>
         </div>

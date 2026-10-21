@@ -108,17 +108,25 @@ function sharedPrefix(a: string, b: string) {
 export type Resolution =
   | { state: 'attached'; start: number; end: number }
   | { state: 'moved'; start: number; end: number } // quote edited; anchored by its old surroundings
+  | { state: 'ambiguous' } // the quote appears several times and its context can't tell them apart
   | { state: 'detached' }
 
 export function resolve(anchor: CommentAnchor, index: TextIndex): Resolution {
   const { text } = index
   let best: { start: number; score: number } | null = null
+  let tied = false
   for (let at = text.indexOf(anchor.quote); at >= 0 && anchor.quote; at = text.indexOf(anchor.quote, at + 1)) {
     const score =
       sharedSuffix(text.slice(Math.max(0, at - CONTEXT), at), anchor.prefix) +
       sharedPrefix(text.slice(at + anchor.quote.length, at + anchor.quote.length + CONTEXT), anchor.suffix)
-    if (!best || score > best.score) best = { start: at, score }
+    if (best && score === best.score) tied = true
+    if (!best || score > best.score) {
+      best = { start: at, score }
+      tied = false
+    }
   }
+  // Never highlight a guess: the agent CLI reports the same case as ambiguous.
+  if (best && tied) return { state: 'ambiguous' }
   if (best) return { state: 'attached', start: best.start, end: best.start + anchor.quote.length }
 
   // The quote changed: if its old surroundings are still unique, anchor to what now sits between them.
