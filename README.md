@@ -5,7 +5,7 @@ Your documents can live anywhere. Opening a folder adds it to the workspace with
 
 ## Install from a checkout
 
-Requires macOS or Linux, Python 3.10 or newer, and a modern browser. There are no Python packages to install.
+Requires macOS or Linux, Python 3.10 or newer, and a modern browser. There are no Python packages to install. Building the React UI requires Node.js and npm; running a built installation does not.
 Windows is not supported yet because the service uses POSIX process locks.
 
 Clone this repository into a permanent directory, then run:
@@ -22,6 +22,13 @@ Add `~/.local/bin` to your shell PATH if it is not already present:
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+The installer builds the frontend with `npm ci` and `npm run build` when `web/package.json` exists and built assets are missing.
+Use `python3 install.py --build` to rebuild after frontend changes.
+Use `--skip-build` to install only the launcher; this requires existing assets to read documents.
+The installer finds npm on PATH or in a local nvm installation. Build failures stop installation.
+During the migration, the server falls back to the original frontend when no React build exists.
+After cutover, a missing build displays installation instructions.
 
 The installer creates a launcher pointing at this checkout and its Python interpreter.
 Keep the checkout in place. After moving it or changing Python installations, run the installer again.

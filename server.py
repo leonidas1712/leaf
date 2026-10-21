@@ -151,13 +151,28 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(scan_folder(root))
             else:
                 name = url.path.lstrip('/') or 'index.html'
-                allowed = {'index.html', 'app.js', 'agent.js', 'style.css', 'vendor/marked.min.js', 'vendor/purify.min.js', 'vendor/mermaid.min.js', 'diagrams.js'}
-                if name not in allowed:
-                    self.respond({'error': 'Not found'}, 404)
-                    return
-                data = (BASE / name).read_bytes()
+                dist = BASE / 'web' / 'dist'
+                if (dist / 'index.html').is_file():
+                    root = dist.resolve()
+                    candidate = (root / name).resolve()
+                    permitted = name == 'index.html' or name.startswith('assets/')
+                    if not permitted or not candidate.is_relative_to(root) or not candidate.is_file():
+                        self.respond({'error': 'Not found'}, 404)
+                        return
+                else:
+                    # Retain the existing frontend until the React cutover removes it.
+                    allowed = {'index.html', 'app.js', 'agent.js', 'style.css', 'vendor/marked.min.js', 'vendor/purify.min.js', 'vendor/mermaid.min.js', 'diagrams.js'}
+                    if name not in allowed:
+                        self.respond({'error': 'Not found'}, 404)
+                        return
+                    candidate = BASE / name
+                    if not (BASE / 'index.html').exists():
+                        self.respond(b'Leaf frontend is not built. Run: python3 install.py --build', 503, 'text/plain; charset=utf-8')
+                        return
+                data = candidate.read_bytes()
                 if name == 'index.html':
                     data = data.replace(b'<!-- LEAF_AGENT_TOKEN -->', f'<meta name="leaf-agent-token" content="{TOKEN}">'.encode())
+                    data = data.replace(b'__LEAF_TOKEN__', TOKEN.encode())
                 self.respond(data, content_type=mimetypes.guess_type(name)[0] or 'application/octet-stream')
         except (ValueError, OSError) as error:
             self.respond({'error': str(error)}, 400)

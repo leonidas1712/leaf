@@ -47,6 +47,27 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(self.request('/server.py')[0], 404)
         self.assertEqual(self.request('/api/file?id=unknown', headers={'X-Leaf-Token': server.TOKEN})[0], 400)
 
+    def test_built_assets_are_contained_and_tokenized(self):
+        """Serve build assets but reject traversal, escaped symlinks, and source files."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dist = root / 'web/dist'
+            (dist / 'assets').mkdir(parents=True)
+            (dist / 'index.html').write_text('<meta name="leaf-agent-token" content="__LEAF_TOKEN__">')
+            (dist / 'assets/app.js').write_text('console.log("Leaf")')
+            (root / 'private.txt').write_text('private')
+            (dist / 'assets/escape.js').symlink_to(root / 'private.txt')
+            with patch.object(server, 'BASE', root):
+                code, body = self.request('/')
+                self.assertEqual(code, 200)
+                self.assertIn(server.TOKEN.encode(), body)
+                self.assertNotIn(b'__LEAF_TOKEN__', body)
+                self.assertEqual(self.request('/assets/app.js')[0], 200)
+                for path in ('/assets/../../../private.txt', '/assets/escape.js', '/server.py', '/assets/missing.js'):
+                    self.assertEqual(self.request(path)[0], 404, path)
+                (dist / 'index.html').unlink()
+                self.assertEqual(self.request('/')[0], 503)
+
     def test_explicit_session_and_receipt(self):
         """Reject ambiguous readers and acknowledge only the addressed session."""
         headers = {'X-Leaf-Token': server.TOKEN}

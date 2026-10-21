@@ -29,12 +29,29 @@ class CliTests(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory(prefix='leaf install ') as directory:
             env = dict(os.environ, LEAF_STATE_DIR=str(Path(directory) / 'state'))
-            result = subprocess.run([sys.executable, str(BASE / 'install.py'), '--bin-dir', directory], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(BASE / 'install.py'), '--bin-dir', directory, '--skip-build'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             result = subprocess.run([str(Path(directory) / 'leaf'), 'status', '--json'], cwd=directory, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)['status'], 'stopped')
             self.assertFalse((Path(directory) / 'state').exists())
+
+    def test_frontend_build_uses_locked_dependencies_and_checks_output(self):
+        """Use npm ci before build and reject a successful process without artifacts."""
+        from unittest.mock import patch
+        import install
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'web').mkdir()
+            (root / 'web/package-lock.json').write_text('{}')
+            with patch.object(install.shutil, 'which', return_value='/node/bin/npm'), patch.object(install.subprocess, 'run') as run:
+                with self.assertRaisesRegex(RuntimeError, 'did not produce'):
+                    install.build_frontend(root)
+                self.assertEqual(run.call_args_list[0].args[0][1], 'ci')
+                self.assertEqual(run.call_args_list[1].args[0][1:], ['run', 'build'])
+                (root / 'web/dist').mkdir()
+                (root / 'web/dist/index.html').write_text('Leaf')
+                install.build_frontend(root)
 
 
 if __name__ == '__main__':
