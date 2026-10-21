@@ -91,3 +91,24 @@ Groups require unique names. `--group` on open requires an existing group.
 Closing a group saves its tabs and positions. Removing a group closes its tabs without deleting source files.
 Tab groups remain contiguous; moving a tab can adjust its final position to preserve grouping.
 See API.md for the browser synchronization and group action contracts.
+
+## Read Aboard files
+
+```sh
+leaf open aboard://leaf/notes/ui-plan.md --server aboard --json
+leaf open aboard://leaf/notes/ui-plan.md@v1 --server aboard --json
+leaf refresh --aboard --json
+```
+
+Use a board path, not an invitation or authentication URL. Quote spaces or percent-encode them.
+The installed Aboard CLI uses its current authenticated identity and board access. Leaf never reads or copies Aboard credentials.
+`--server` selects an Aboard server name or URL; omit it to use Aboard's normal selection rules.
+Opening defaults to a group named after the board, creating it when needed. Override with `--group EXISTING_NAME` or `--group none`.
+Leaf downloads exact bytes into its private state directory, verifies the digest, and shows board/version provenance.
+An unpinned URI selects the latest version when opened or explicitly refreshed. `@vN` stays pinned to that version.
+Pinned and unpinned copies use separate cache paths. Repeat opens reuse the same cached tab for the same source identity.
+`leaf refresh --aboard` refreshes all saved Aboard sources, including closed tabs, without changing the active document or scroll positions.
+Ordinary `leaf refresh` reloads local files only. A failed download retains the previous cached bytes and metadata.
+If some refreshes fail, successful sources remain updated; the command reports `partial`, lists failures, and exits 1.
+There is no automatic remote polling or browser update-from-board control yet.
+Only the selected file is downloaded; relative board images and linked files are not fetched automatically.

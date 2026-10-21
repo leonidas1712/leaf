@@ -56,3 +56,11 @@ Compare stamps for equality only; refetch changed documents while preserving rea
 A new server instance requires fresh file grants even if the revision is unchanged.
 POST `/api/ack` acknowledges live commands with `{session,id,state,error?}`.
 GET `/api/sessions` reports recent readers. Live commands remain `state` and `heading`.
+
+## Aboard cache refresh
+
+The CLI adapter downloads Aboard files through the installed authenticated Aboard CLI.
+`open-file.source` records provenance; it does not authorize the HTTP server to fetch remote data.
+`source-update {path, source}` updates existing provenance without changing active tabs or reading positions.
+It must retain kind, server, board, file, and pinned identity. Source metadata also includes the downloaded SHA-256 digest.
+Aboard downloads and refresh remain CLI-only; the server does not run remote-fetch subprocesses.

@@ -39,3 +39,9 @@ Leaf reads documents; it does not modify, move, or delete source documents.
 
 Groups require unique names. Closing saves member tabs; removing a group closes tabs without deleting documents.
 Read API.md in the source checkout before changing synchronization or group behavior.
+
+For board files use `leaf open aboard://BOARD/path/file.md --server SERVER --json`.
+Use `@vN` to pin a version. Otherwise the latest version is selected at open or explicit refresh.
+`leaf refresh --aboard --json` refreshes saved board sources without changing tab focus.
+Aboard must already be installed, connected, and authorized for that board. Leaf does not join boards or handle credentials.
+Only the requested file is fetched; relative board attachments are not automatic.

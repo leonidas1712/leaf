@@ -96,3 +96,15 @@ class GroupTests(unittest.TestCase):
         self.assertEqual(restored['sources'][self.paths[0]], source)
         self.assertEqual(restored['reader']['width'], 'wide')
         self.assertEqual(restored['theme'], 'system')
+
+    def test_source_refresh_preserves_focus_and_scroll(self):
+        """Updating provenance cannot focus its tab or discard its saved reading position."""
+        source = {'kind': 'aboard', 'server': 'https://aboard.example', 'board': 'leaf', 'file': 'plan.md', 'pinned': False, 'version': 1}
+        self.workspace.action({'action': 'open-file', 'path': self.paths[0], 'source': source})
+        self.workspace.action({'action': 'scroll', 'top': 250})
+        self.workspace.action({'action': 'focus-tab', 'path': self.paths[1]})
+        self.workspace.action({'action': 'source-update', 'path': self.paths[0], 'source': dict(source, version=2)})
+        self.assertEqual(self.workspace.data['active'], self.paths[1])
+        self.assertEqual(self.workspace.data['tabs'][0]['scroll'], 250)
+        with self.assertRaises(ValueError):
+            self.workspace.action({'action': 'source-update', 'path': self.paths[0], 'source': dict(source, board='other')})

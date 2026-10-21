@@ -142,7 +142,7 @@ class Workspace:
                     source = command['source']
                     if not isinstance(source, dict) or source.get('kind') != 'aboard':
                         raise ValueError('Source must be Aboard metadata.')
-                    data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned') if key in source}
+                    data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
                 data['active'] = path
                 recent = 'recentFiles'
             else:
@@ -154,6 +154,14 @@ class Workspace:
                     data['expanded'].append(path)
                 recent = 'recentFolders'
             data[recent] = [path] + [p for p in data[recent] if p != path][:29]
+        elif action == 'source-update':
+            if path not in data['sources'] or not isinstance(command.get('source'), dict):
+                raise ValueError('Source must already exist.')
+            source = command['source']
+            previous = data['sources'][path]
+            if any(source.get(key) != previous.get(key) for key in ('kind', 'server', 'board', 'file', 'pinned')):
+                raise ValueError('A refresh cannot change source identity.')
+            data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
         elif action.startswith('group-'):
             apply_group_action(data, command)
         elif action == 'reader':

@@ -169,3 +169,19 @@ Use `leaf group new Project --color blue`, then `leaf open plan.md --group Proje
 Use `leaf reader --font-size 18 --width wide --font serif` to save reader settings.
 `leaf prefs theme system` follows the browser's system color scheme in the React UI.
 See [API.md](API.md) for frontend integration and action contracts.
+
+## Aboard artifacts
+
+With the Aboard CLI installed and connected, open an accessible board file directly:
+
+```sh
+leaf open aboard://leaf/notes/ui-plan.md --server aboard
+leaf open aboard://leaf/notes/ui-plan.md@v1 --server aboard
+leaf refresh --aboard
+```
+
+Leaf creates a group named after the board and displays the board and downloaded version above the document.
+Use `--group NAME` to choose an existing group. Aboard retains responsibility for authentication and board access.
+Downloads are cached privately under the Leaf state directory; your original documents are never overwritten.
+Unpinned files update on explicit refresh. Pinned `@vN` files retain that version. No remote polling runs in the background.
+Relative attachments and board links are not downloaded automatically. Refresh is available through the CLI; a UI button can follow later.

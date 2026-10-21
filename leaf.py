@@ -176,6 +176,10 @@ def make_parser():
                     group_parser.add_argument('--collapsed', choices=['true', 'false'])
         if name in ('open', 'open-file', 'open-folder', 'ui'):
             child.add_argument('--no-browser', action='store_true', help='Do not launch a browser')
+        if name in ('open', 'open-file'):
+            child.add_argument('--server', help='Aboard server name or URL for aboard:// paths')
+        if name == 'refresh':
+            child.add_argument('--aboard', action='store_true', help='Fetch saved Aboard sources; pinned versions stay pinned')
         if name == 'heading':
             child.add_argument('--session', help='Connected reader ID')
     return parser, commands.choices
@@ -300,13 +304,39 @@ def main():
             raise SystemExit(1)
     else:
         info = start()
-        if action == 'open':
-            if not args.paths:
-                if not args.no_browser:
-                    open_browser(info['url'])
-                print(json.dumps({'status': 'running', 'url': info['url']}))
-                return
-            commands = [dict(extra, **{'action': 'open-folder' if Path(p).expanduser().is_dir() else 'open-file', 'path': str(Path(p).expanduser().resolve())}) for p in args.paths]
+        if action == 'refresh' and args.aboard:
+            from aboard_source import refresh_document
+            failures = []
+            for path, source in info['workspace'].get('sources', {}).items():
+                if source.get('kind') != 'aboard':
+                    continue
+                try:
+                    _, updated = refresh_document(path, source, RUNTIME)
+                    request('/api/action', {'action': 'source-update', 'path': path, 'source': updated})
+                except (OSError, ValueError, RuntimeError) as error:
+                    failures.append({'path': path, 'error': str(error)})
+            if failures:
+                output({'status': 'partial', 'failures': failures}, args.json)
+                raise SystemExit(1)
+            commands = [{'action': 'refresh'}]
+        elif action in ('open', 'open-file'):
+            commands = []
+            for path in args.paths:
+                command = dict(extra)
+                if path.startswith('aboard://'):
+                    from aboard_source import fetch_document
+                    cached, source = fetch_document(path, RUNTIME, args.server)
+                    command.update(action='open-file', path=cached, source=source)
+                    if 'group' not in command:
+                        group_name = source['board']
+                        current = request('/api/status')['workspace']
+                        if not any(group_name in (group['name'], group['id']) for group in current['groups']):
+                            request('/api/action', {'action': 'group-create', 'name': group_name})
+                        command['group'] = group_name
+                else:
+                    command.update(action='open-folder' if action == 'open' and Path(path).expanduser().is_dir() else 'open-file',
+                                   path=str(Path(path).expanduser().resolve()))
+                commands.append(command)
         else:
             command = dict(extra, action={'close': 'close-tab', 'focus': 'focus-tab'}.get(action, action))
             if args.paths:
