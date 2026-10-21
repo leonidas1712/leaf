@@ -17,6 +17,7 @@
   <img alt="React 19" src="https://img.shields.io/badge/react-19-149eca?style=flat-square&logo=react&logoColor=white">
   <img alt="Local first" src="https://img.shields.io/badge/local--first-127.0.0.1-2f6a4b?style=flat-square">
   <img alt="Agent operable" src="https://img.shields.io/badge/agents-CLI%20%2B%20JSON-7c3aed?style=flat-square">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2f6a4b?style=flat-square"></a>
 </p>
 
 <p align="center">
