@@ -5,22 +5,25 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { agentPrompt, CommentsRail, documentComments, startComment } from './CommentsRail'
+import { HistoryPanel } from './HistoryPanel'
 import { Outline } from './Outline'
 
 const SEGMENT =
   'h-6 gap-1.5 rounded-md px-2.5 text-[12px] text-ink-muted data-[state=on]:bg-paper data-[state=on]:text-ink data-[state=on]:shadow-xs dark:data-[state=on]:bg-rule-strong'
 
-/** The right-hand column: the document's outline, or its comment threads. */
+/** The right-hand column: the document's outline, its comment threads, or its version history. */
 export function SidePanel({
   path,
   viewport,
   article,
   version,
+  editing = false,
 }: {
   path: string
   viewport: RefObject<HTMLDivElement | null>
   article: RefObject<HTMLElement | null>
   version: unknown
+  editing?: boolean
 }) {
   const open = useLeaf((s) => s.outlineOpen)
   const choice = useLeaf((s) => s.sidePanel)
@@ -61,7 +64,7 @@ export function SidePanel({
         <ToggleGroup
           type="single"
           value={mode}
-          onValueChange={(value) => value && setState({ sidePanel: value as 'outline' | 'comments' })}
+          onValueChange={(value) => value && setState({ sidePanel: value as 'outline' | 'comments' | 'history' })}
           className="rounded-lg bg-accent/60 p-0.5"
           aria-label="Side panel"
         >
@@ -76,8 +79,11 @@ export function SidePanel({
               </span>
             )}
           </ToggleGroupItem>
+          <ToggleGroupItem value="history" className={SEGMENT}>
+            History
+          </ToggleGroupItem>
         </ToggleGroup>
-        {mode === 'comments' && (
+        {mode === 'comments' && !editing && (
           <div className="ml-auto flex items-center">
             {iconButton('Comment on the whole document', <MessageSquarePlus className="size-4" />, () =>
               setState({ draft: { path, anchor: null }, activeComment: 'draft' }),
@@ -90,7 +96,7 @@ export function SidePanel({
             )}
           </div>
         )}
-        {mode === 'comments' && resolved > 0 && (
+        {mode === 'comments' && !editing && resolved > 0 && (
           // Labelled rather than an icon: resolved threads are otherwise easy to lose track of.
           <button
             type="button"
@@ -109,6 +115,12 @@ export function SidePanel({
       </div>
       {mode === 'outline' ? (
         <Outline viewport={viewport} />
+      ) : mode === 'history' ? (
+        <HistoryPanel path={path} />
+      ) : editing ? (
+        <p className="text-[12.5px] leading-relaxed text-ink-muted">
+          Comments sit beside the text in Read and Split views. Switch to one of those to see and add them.
+        </p>
       ) : (
         <>
           <CommentsRail path={path} article={article} version={version} showResolved={showResolved} />

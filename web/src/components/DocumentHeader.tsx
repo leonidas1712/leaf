@@ -3,7 +3,10 @@ import { Check, Copy, FolderSearch, RefreshCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath } from '@/lib/paths'
-import { actions, useLeaf } from '@/lib/store'
+import { actions, AUTHOR, setState, useLeaf } from '@/lib/store'
+import { listVersions, versionText } from '@/lib/versions'
+import { toast } from 'sonner'
+import { authorName } from './CommentCard'
 import { CollectionPicker } from './CollectionPicker'
 import { groupStyle } from './groups'
 
@@ -51,6 +54,34 @@ export function DocumentHeader({
     }
   }, [updatedAt])
 
+  // Who made the latest change, and the version before it, so the pill can show the difference.
+  const [latest, setLatest] = useState<{ author: string | null; id: string; previous?: string } | null>(null)
+  useEffect(() => {
+    setLatest(null)
+    if (!updatedAt) return
+    let alive = true
+    listVersions(path)
+      .then(({ versions }) => alive && versions[0] && setLatest({ author: versions[0].author, id: versions[0].id, previous: versions[1]?.id }))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [path, updatedAt])
+
+  const showChanges = async () => {
+    if (!latest?.previous) return
+    try {
+      const [before, after] = await Promise.all([versionText(path, latest.previous), versionText(path, latest.id)])
+      const who = latest.author ? authorName(latest.author) : 'An unsigned change'
+      setState({ diff: { path, title: `${who} · ${latest.previous} → ${latest.id}`, before, after } })
+    } catch (error) {
+      toast.error((error as Error).message)
+    }
+  }
+
+  const presenceEntry = useLeaf((s) => s.workspace?.editing?.[path])
+  const presence = presenceEntry && presenceEntry.author !== AUTHOR ? presenceEntry : null
+
   const copy = () =>
     navigator.clipboard.writeText(path).then(() => {
       setCopied(true)
@@ -60,7 +91,7 @@ export function DocumentHeader({
   const fresh = updatedAt !== null && now - updatedAt < 6000
 
   return (
-    <div className="print-hide mb-9 flex items-center gap-3 border-b border-rule pb-3 text-[12px] text-ink-muted">
+    <div className="print-hide mb-9 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule pb-3 text-[12px] text-ink-muted">
       {group && (
         <span
           style={groupStyle(group.color)}
@@ -110,6 +141,15 @@ export function DocumentHeader({
             {origin.version ? ` · v${origin.version}` : ''}
           </span>
         )}
+        {presence && (
+          <span
+            title="Set by the agent with leaf checkout. Advisory only: anything can still change the file."
+            className="flex items-center gap-1.5 text-ink-soft"
+          >
+            <span className="size-1.5 animate-pulse rounded-full bg-[var(--g-orange)]" />
+            {authorName(presence.author)} is editing
+          </span>
+        )}
         {updatedAt !== null && (
           <span
             className={
@@ -119,7 +159,16 @@ export function DocumentHeader({
             }
           >
             <RefreshCw className="size-3" />
-            Updated {ago(updatedAt, now)}
+            Updated{latest?.author && latest.author !== AUTHOR ? ` by ${authorName(latest.author)}` : ''} {ago(updatedAt, now)}
+            {latest?.previous && (
+              <button
+                type="button"
+                onClick={showChanges}
+                className="ml-1 underline decoration-current/40 underline-offset-2 hover:decoration-current"
+              >
+                View changes
+              </button>
+            )}
           </span>
         )}
         {source && <span className="rounded-full bg-chrome px-2 py-px text-[11px] font-medium text-ink-soft">Source</span>}

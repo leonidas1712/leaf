@@ -51,7 +51,7 @@ export interface LeafState {
   sidebarWidth: number
   outlineOpen: boolean
   /** Right column: follow the document (comments when it has any), or a fixed choice. */
-  sidePanel: 'auto' | 'outline' | 'comments'
+  sidePanel: 'auto' | 'outline' | 'comments' | 'history'
   /** Comment thread in focus (highlighted passage, raised card), or 'draft' while composing. */
   activeComment: string | null
   /** Unsaved new comment: its anchor (null for the whole document) and the document it is on. */
@@ -68,6 +68,23 @@ export interface LeafState {
   status: string
   /** Change markers for open documents; a new value means the file changed on disk. */
   stamps: Record<string, string | null>
+  /** Unsaved or in-progress edits per document, kept across tab switches. */
+  drafts: Record<string, Draft>
+  /** Documents shown in the editor ('edit') or editor beside preview ('split'); others read. */
+  editModes: Record<string, 'edit' | 'split'>
+  /** A diff to show over the document: two texts and what they are. */
+  diff: null | { path: string; title: string; before: string; after: string }
+}
+
+export interface Draft {
+  /** The text the edits started from: what was on disk when loaded or last saved. */
+  base: string
+  baseHash: string
+  /** The editor's current text. */
+  text: string
+  /** The file changed on disk while there were unsaved edits. */
+  incoming?: { text: string; hash: string }
+  saving?: boolean
 }
 
 const readerSession = crypto.randomUUID()
@@ -92,6 +109,9 @@ let state: LeafState = {
   headings: [],
   status: '',
   stamps: {},
+  drafts: {},
+  editModes: {},
+  diff: null,
 }
 
 const listeners = new Set<() => void>()
@@ -368,13 +388,21 @@ export const actions = {
       ? act({ action: 'group-add', group: group.id, paths: [path] })
       : actions.open(path, { group: group.id }),
   openFolder: (path: string, quiet = false) => act({ action: 'open-folder', path }, undefined, quiet),
-  close: (path: string) =>
-    act({ action: 'close-tab', path }, (ws) => {
+  close: async (path: string) => {
+    const draft = state.drafts[path]
+    if (draft && draft.text !== draft.base && !window.confirm(`Discard unsaved changes to ${path.split('/').pop()}?`)) return null
+    const drafts = { ...state.drafts }
+    const editModes = { ...state.editModes }
+    delete drafts[path]
+    delete editModes[path]
+    setState({ drafts, editModes })
+    return act({ action: 'close-tab', path }, (ws) => {
       const index = ws.tabs.findIndex((tab) => tab.path === path)
       const tabs = ws.tabs.filter((tab) => tab.path !== path)
       const active = ws.active === path ? (tabs[Math.min(index, tabs.length - 1)]?.path ?? null) : ws.active
       return { ...ws, tabs, active }
-    }),
+    })
+  },
   reorder: (paths: string[]) =>
     act({ action: 'reorder-tabs', paths }, (ws) => ({
       ...ws,

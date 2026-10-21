@@ -4,7 +4,10 @@ import { fetchFile, type Entry, type ReaderPrefs } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdown, resolveRelative } from '@/lib/markdown'
 import { renderDiagram } from '@/lib/mermaid'
-import { actions, reader, scrolls, setState, TEXT_FILE } from '@/lib/store'
+import { actions, reader, scrolls, setState, TEXT_FILE, useLeaf } from '@/lib/store'
+import { diskChanged } from '@/lib/drafts'
+import { EditBar } from './EditBar'
+import { Editor } from './Editor'
 import { DiagramPanel, type DiagramResult } from './DiagramPanel'
 import { DocumentHeader } from './DocumentHeader'
 import { SelectionCommentButton } from './CommentsRail'
@@ -99,6 +102,16 @@ export function DocumentView({
     return () => observer.disconnect()
   }, [])
 
+  // Split view previews the draft as you type (debounced), instead of the file on disk.
+  const mode = useLeaf((s) => s.editModes[path])
+  const draftText = useLeaf((s) => s.drafts[path]?.text)
+  const [preview, setPreview] = useState<string | null>(null)
+  useEffect(() => {
+    if (mode !== 'split' || draftText === undefined) return setPreview(null)
+    const timer = setTimeout(() => setPreview(draftText), 250)
+    return () => clearTimeout(timer)
+  }, [mode, draftText])
+
   // Load and render whenever the document, its grant, the view mode, or the theme changes.
   const grantId = entry?.id
   const grantError = entry?.error
@@ -113,14 +126,17 @@ export function DocumentView({
     displayed.current = null
     ;(async () => {
       try {
-        if (grantError || !grantId) throw new Error(grantError ?? 'File is unavailable.')
-        const blob = await fetchFile(grantId, controller.signal)
-        if (blob.size > 10 * 1024 * 1024) throw new Error('This file exceeds the 10 MB reading limit.')
-        const text = await blob.text()
+        let text = preview
+        if (text === null) {
+          if (grantError || !grantId) throw new Error(grantError ?? 'File is unavailable.')
+          const blob = await fetchFile(grantId, controller.signal)
+          if (blob.size > 10 * 1024 * 1024) throw new Error('This file exceeds the 10 MB reading limit.')
+          text = await blob.text()
+        }
         if (stale()) return
         const extension = path.split('.').pop()?.toLowerCase() ?? ''
         const html =
-          !source && isMarkdown(path)
+          (preview !== null || !source) && isMarkdown(path)
             ? renderMarkdown(text)
             : `<pre><code class="language-${source ? 'markdown' : (CODE_LANGUAGE[extension] ?? 'plaintext')}">${escapeHTML(text)}</code></pre>`
         // Parse off-DOM so diagrams and images resolve before anything visible changes.
@@ -203,7 +219,7 @@ export function DocumentView({
       controller.abort()
       reader.rendering = false
     }
-  }, [path, granted, grantId, grantError, source, theme, remember, updatedAt])
+  }, [path, granted, grantId, grantError, source, theme, remember, updatedAt, preview])
 
   // Switching documents hides the old article, which clamps scrollTop to 0 and fires a scroll
   // event on the next frame. Forget the old document first so that event can't overwrite its
@@ -278,19 +294,43 @@ export function DocumentView({
   const failed = failure?.path === path ? failure : null
   const loading = !current && !failed
 
+  const draft = useLeaf((s) => s.drafts[path])
+  // While a draft is open, follow the file on disk: reload a clean draft, hold changes for a dirty one.
+  const hasDraft = !!draft
+  useEffect(() => {
+    if (hasDraft && stamp && grantId) diskChanged(path, grantId).catch(() => {})
+  }, [hasDraft, stamp, grantId, path])
+
   return (
     <div
       ref={viewport}
       onScroll={remember}
       className="print-flow relative min-h-0 flex-1 overflow-y-auto bg-paper [scrollbar-gutter:stable]"
     >
-      <div className={cn('mx-auto flex gap-12 px-10 pt-10 pb-32 max-[900px]:px-6', prefs.width === 'full' ? 'max-w-none' : 'max-w-[1400px]')}>
+      <div
+        className={cn(
+          'mx-auto flex gap-12 px-10 pt-10 pb-32 max-[900px]:px-6',
+          mode === 'split' || prefs.width === 'full' ? 'max-w-none' : 'max-w-[1400px]',
+        )}
+      >
+        {mode === 'split' && draft && (
+          <div className="min-w-0 flex-1 border-r border-rule pr-10">
+            <EditBar path={path} />
+            <Editor key={path} path={path} text={draft.text} fontSize={prefs.fontSize} />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div
             className="mx-auto"
             style={{ maxWidth: prefs.width === 'full' ? 'none' : prefs.fontSize * (prefs.width === 'wide' ? 58 : 42) }}
           >
             <DocumentHeader path={path} stats={current?.stats} source={source} updatedAt={updatedAt} />
+            {mode === 'edit' && draft && (
+              <>
+                <EditBar path={path} />
+                <Editor key={path} path={path} text={draft.text} fontSize={prefs.fontSize} />
+              </>
+            )}
             {failed && (
               <div className="mt-6 rounded-[10px] border border-rule bg-chrome/50 px-5 py-4">
                 <p className="font-medium text-ink">This document can't be shown</p>
@@ -313,11 +353,11 @@ export function DocumentView({
               data-font={prefs.font}
               data-source={source || undefined}
               style={{ '--body-size': `${prefs.fontSize}px`, '--measure': 'none' } as React.CSSProperties}
-              className={loading || failed ? 'hidden' : 'prose-leaf'}
+              className={loading || failed || mode === 'edit' ? 'hidden' : 'prose-leaf'}
             />
           </div>
         </div>
-        <SidePanel path={path} viewport={viewport} article={article} version={current} />
+        {mode !== 'split' && <SidePanel path={path} viewport={viewport} article={article} version={current} editing={mode === 'edit'} />}
       </div>
       {current && <SelectionCommentButton path={path} article={article} />}
       {current &&

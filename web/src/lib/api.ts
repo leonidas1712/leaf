@@ -97,6 +97,8 @@ export interface Workspace {
   source: boolean
   search: string
   sidebarWidth: number
+  /** Advisory: who said they are editing which document (agents via `leaf checkout`). */
+  editing?: Record<string, { author: string; since: string; base?: string }>
   expanded: string[]
   groups?: TabGroup[]
   collections?: Collection[]

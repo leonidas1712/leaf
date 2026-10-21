@@ -569,3 +569,43 @@
 ::highlight(leaf-comment-active) {
   background-color: color-mix(in oklch, var(--g-yellow) 52%, transparent);
 }
+
+/* Editor: conflict blocks get a labelled bar with the choices; regions are tinted. */
+.leaf-editor .cm-conflict-base {
+  background-color: color-mix(in oklch, var(--ink-faint) 10%, transparent);
+  color: var(--ink-faint);
+}
+.leaf-editor .cm-conflict-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 0;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+}
+.leaf-editor .cm-conflict-bar[data-kind="end"] {
+  height: 2px;
+  padding: 0;
+  border-top: 1px dashed var(--rule-strong);
+}
+.leaf-editor .cm-conflict-bar button {
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.leaf-editor .cm-conflict-bar button:first-of-type {
+  margin-left: auto;
+}
+.leaf-editor .cm-conflict-bar button:hover {
+  border-color: var(--leaf);
+  color: var(--leaf-ink);
+}

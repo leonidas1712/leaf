@@ -4,6 +4,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { CollectionDialog } from '@/components/collections'
 import { CommandPalette } from '@/components/CommandPalette'
 import { startComment } from '@/components/CommentsRail'
+import { DiffDialog } from '@/components/DiffDialog'
+import { closeEditor, isDirty, openEditor, saveDraft } from '@/lib/drafts'
 import { DocumentView } from '@/components/DocumentView'
 import { EmptyState } from '@/components/EmptyState'
 import { GroupDialog } from '@/components/groups'
@@ -45,6 +47,12 @@ function onKey(event: KeyboardEvent) {
     startComment(workspace.active, document.querySelector<HTMLElement>('article.prose-leaf'))
     return
   }
+  // ⌘S saves the active document's edits from anywhere; inside the editor CodeMirror already did.
+  if (mod && event.key.toLowerCase() === 's' && workspace?.active && getState().drafts[workspace.active]) {
+    if (!event.defaultPrevented) saveDraft(workspace.active)
+    event.preventDefault()
+    return
+  }
   const { openDialog, groupDialog, collectionDialog } = getState()
   if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || !workspace) return
   const key = event.key
@@ -61,6 +69,9 @@ function onKey(event: KeyboardEvent) {
     t: () => actions.theme(resolveTheme(workspace.theme) === 'dark' ? 'light' : 'dark'),
     o: () => setState({ openDialog: 'open-file' }),
     c: active ? () => startComment(active, document.querySelector<HTMLElement>('article.prose-leaf')) : undefined,
+    e: active
+      ? () => (getState().editModes[active] ? closeEditor(active) : openEditor(active, 'edit'))
+      : undefined,
   }
   const tab = /^[1-9]$/.test(key) ? (key === '9' ? workspace.tabs.at(-1) : workspace.tabs[Number(key) - 1]) : undefined
   const run = bindings[key] ?? (tab ? () => actions.focus(tab.path) : undefined)
@@ -94,6 +105,14 @@ export default function App() {
   const active = workspace?.active ?? null
 
   useEffect(() => startSync(), [])
+  // Closing or reloading the page with unsaved edits asks first.
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => {
+      if (Object.values(getState().drafts).some(isDirty)) event.preventDefault()
+    }
+    window.addEventListener('beforeunload', guard)
+    return () => window.removeEventListener('beforeunload', guard)
+  }, [])
   useEffect(() => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -147,6 +166,7 @@ export default function App() {
       <OpenDialog />
       <GroupDialog />
       <CollectionDialog />
+      <DiffDialog />
       <Toaster theme={theme} position="bottom-right" />
     </TooltipProvider>
   )

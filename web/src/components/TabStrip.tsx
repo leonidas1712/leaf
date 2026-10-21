@@ -17,6 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
+import { closeEditor, isDirty, openEditor } from '@/lib/drafts'
 import { actions, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { GroupMenuItems, groupStyle } from './groups'
@@ -28,8 +29,11 @@ export function TabStrip() {
   const entries = useLeaf((s) => s.entries)
   const sidebarOpen = useLeaf((s) => s.sidebarOpen)
   const outlineOpen = useLeaf((s) => s.outlineOpen)
+  const editModes = useLeaf((s) => s.editModes)
+  const drafts = useLeaf((s) => s.drafts)
   const tabs = workspace?.tabs ?? []
   const active = workspace?.active ?? null
+  const readOnly = !!(active && workspace?.sources?.[active])
   const labels = useMemo(() => tabLabels(tabs.map((tab) => tab.path)), [tabs])
   const strip = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<string | null>(null)
@@ -211,6 +215,9 @@ export function TabStrip() {
                       >
                         <FileText className={cn('size-3.5 shrink-0', selected ? 'text-leaf' : 'text-ink-faint', missing && 'text-destructive')} />
                         <span className={cn('truncate', missing && 'line-through decoration-ink-faint')}>{labels.get(tab.path)}</span>
+                        {isDirty(drafts[tab.path]) && (
+                          <span title="Unsaved changes" className="size-2 shrink-0 rounded-full bg-[var(--g-yellow)]" />
+                        )}
                         {openComments.get(tab.path) && (
                           <span
                             title={`${openComments.get(tab.path)} open comments`}
@@ -280,17 +287,31 @@ export function TabStrip() {
             <ToggleGroup
               type="single"
               size="sm"
-              value={workspace.source ? 'source' : 'read'}
-              onValueChange={(value) => value && actions.view(value === 'source')}
+              value={editModes[active] ?? 'read'}
+              onValueChange={(value) => {
+                if (value === 'read') closeEditor(active)
+                else if (value === 'edit' || value === 'split') openEditor(active, value)
+              }}
               className="h-7 rounded-lg bg-accent/60 p-0.5"
-              aria-label="Document view"
+              aria-label="Document mode"
             >
-              <ToggleGroupItem value="read" className="h-6 rounded-md px-2.5 text-[12px] text-ink-muted data-[state=on]:bg-paper data-[state=on]:text-ink data-[state=on]:shadow-xs dark:data-[state=on]:bg-rule-strong">
-                Read
-              </ToggleGroupItem>
-              <ToggleGroupItem value="source" className="h-6 rounded-md px-2.5 text-[12px] text-ink-muted data-[state=on]:bg-paper data-[state=on]:text-ink data-[state=on]:shadow-xs dark:data-[state=on]:bg-rule-strong">
-                Source
-              </ToggleGroupItem>
+              {(
+                [
+                  ['read', 'Read', 'Read the rendered document'],
+                  ['edit', 'Edit', 'Edit the file (e)'],
+                  ['split', 'Split', 'Edit beside a live preview'],
+                ] as const
+              ).map(([value, label, title]) => (
+                <ToggleGroupItem
+                  key={value}
+                  value={value}
+                  title={readOnly && value !== 'read' ? 'Board documents are read-only in Leaf' : title}
+                  disabled={readOnly && value !== 'read'}
+                  className="h-6 rounded-md px-2.5 text-[12px] text-ink-muted data-[state=on]:bg-paper data-[state=on]:text-ink data-[state=on]:shadow-xs dark:data-[state=on]:bg-rule-strong"
+                >
+                  {label}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
           )}
           <ReaderSettings />
