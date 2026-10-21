@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { Entry, TabGroup, Workspace } from '@/lib/api'
+import { REVEAL_LABEL, type Entry, type TabGroup, type Workspace } from '@/lib/api'
 import { basename, displayPath } from '@/lib/paths'
 import { actions, setState, TEXT_FILE, toggleExpanded, useLeaf } from '@/lib/store'
 import { buildTree, type TreeNode } from '@/lib/tree'
@@ -130,6 +130,7 @@ const Row = memo(function Row({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onSelect={() => actions.open(node.path)}>Open</ContextMenuItem>
+          <ContextMenuItem onSelect={() => actions.reveal(node.path)}>{REVEAL_LABEL}</ContextMenuItem>
           <ContextMenuItem onSelect={() => navigator.clipboard.writeText(node.path)}>Copy path</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -138,17 +139,25 @@ const Row = memo(function Row({
   const open = forceOpen || expanded.has(node.path)
   return (
     <>
-      <button
-        type="button"
-        style={indent}
-        aria-expanded={open}
-        onClick={() => toggleExpanded(node.path)}
-        className={cn(ROW, 'text-ink-soft hover:bg-accent hover:text-ink')}
-      >
-        <ChevronRight className={cn('size-3.5 shrink-0 text-ink-faint transition-transform duration-150', open && 'rotate-90')} />
-        {open ? <FolderOpen className="size-3.5 shrink-0 text-ink-faint" /> : <Folder className="size-3.5 shrink-0 text-ink-faint" />}
-        <span className="truncate">{node.name}</span>
-      </button>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            style={indent}
+            aria-expanded={open}
+            onClick={() => toggleExpanded(node.path)}
+            className={cn(ROW, 'text-ink-soft hover:bg-accent hover:text-ink')}
+          >
+            <ChevronRight className={cn('size-3.5 shrink-0 text-ink-faint transition-transform duration-150', open && 'rotate-90')} />
+            {open ? <FolderOpen className="size-3.5 shrink-0 text-ink-faint" /> : <Folder className="size-3.5 shrink-0 text-ink-faint" />}
+            <span className="truncate">{node.name}</span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => actions.reveal(node.path)}>{REVEAL_LABEL}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => navigator.clipboard.writeText(node.path)}>Copy path</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       {open &&
         node.children.map((child) => (
           <Row key={child.path} node={child} depth={depth + 1} active={active} expanded={expanded} forceOpen={forceOpen} />
@@ -196,6 +205,7 @@ function FolderSection({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-56">
+          <ContextMenuItem onSelect={() => actions.reveal(root)}>{REVEAL_LABEL}</ContextMenuItem>
           <ContextMenuItem onSelect={() => navigator.clipboard.writeText(root)}>Copy path</ContextMenuItem>
           <ContextMenuItem onSelect={() => setState({ expanded: new Set([...expanded].filter((p) => p !== root && !p.startsWith(root + '/'))) })}>
             Collapse all
@@ -354,24 +364,32 @@ export function Sidebar() {
             {loose.map((path) => {
               const selected = path === workspace.active
               return (
-                <button
-                  key={path}
-                  type="button"
-                  title={displayPath(path)}
-                  onClick={() => actions.open(path)}
-                  draggable
-                  onDragStart={(event) => startDrag(event, path)}
-                  className={cn(
-                    'flex w-full flex-col rounded-md px-2 py-1 text-left transition-colors',
-                    selected ? 'bg-leaf-soft' : 'hover:bg-accent',
-                  )}
-                >
-                  <span className={cn('flex items-center gap-1.5 text-[13px]', selected ? 'font-medium text-leaf-ink' : 'text-ink-soft')}>
-                    <FileText className={cn('size-3.5 shrink-0', selected ? 'text-leaf' : 'text-ink-faint')} />
-                    <span className="truncate">{basename(path)}</span>
-                  </span>
-                  <span className="truncate pl-5 text-[11px] text-ink-faint">{displayPath(path.slice(0, path.lastIndexOf('/')))}</span>
-                </button>
+                <ContextMenu key={path}>
+                  <ContextMenuTrigger asChild>
+                    <button
+                      type="button"
+                      title={displayPath(path)}
+                      onClick={() => actions.open(path)}
+                      draggable
+                      onDragStart={(event) => startDrag(event, path)}
+                      className={cn(
+                        'flex w-full flex-col rounded-md px-2 py-1 text-left transition-colors',
+                        selected ? 'bg-leaf-soft' : 'hover:bg-accent',
+                      )}
+                    >
+                      <span className={cn('flex items-center gap-1.5 text-[13px]', selected ? 'font-medium text-leaf-ink' : 'text-ink-soft')}>
+                        <FileText className={cn('size-3.5 shrink-0', selected ? 'text-leaf' : 'text-ink-faint')} />
+                        <span className="truncate">{basename(path)}</span>
+                      </span>
+                      <span className="truncate pl-5 text-[11px] text-ink-faint">{displayPath(path.slice(0, path.lastIndexOf('/')))}</span>
+                    </button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onSelect={() => actions.open(path)}>Open</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => actions.reveal(path)}>{REVEAL_LABEL}</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => navigator.clipboard.writeText(path)}>Copy path</ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               )
             })}
           </Section>

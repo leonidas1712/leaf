@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, Code2, Copy, FileText, FolderPlus, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { BookOpen, Code2, Copy, FileText, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { REVEAL_LABEL } from '@/lib/api'
 import { trail } from '@/lib/collections'
 import { groupStyle } from './groups'
 import {
@@ -88,6 +89,7 @@ export function CommandPalette() {
     ...(workspace.active
       ? [
           { label: 'Copy path of current document', icon: Copy, run: () => navigator.clipboard.writeText(workspace.active!) },
+          { label: `${REVEAL_LABEL}: current document`, icon: FolderSearch, run: () => actions.reveal(workspace.active!) },
           { label: 'Close current tab', icon: X, shortcut: 'X', run: () => actions.close(workspace.active!) },
         ]
       : []),

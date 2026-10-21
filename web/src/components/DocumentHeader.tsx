@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Check, Copy, RefreshCw } from 'lucide-react'
+import { Check, Copy, FolderSearch, RefreshCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath } from '@/lib/paths'
-import { useLeaf } from '@/lib/store'
+import { actions, useLeaf } from '@/lib/store'
 import { CollectionPicker } from './CollectionPicker'
 import { groupStyle } from './groups'
 
@@ -87,6 +88,19 @@ export function DocumentHeader({
           </button>
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied path' : 'Copy full path for an agent'}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={REVEAL_LABEL}
+            onClick={() => actions.reveal(path)}
+            className="-ml-1.5 grid size-6 shrink-0 place-items-center rounded-md text-ink-faint transition-colors hover:bg-accent hover:text-ink"
+          >
+            <FolderSearch className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{REVEAL_LABEL}</TooltipContent>
       </Tooltip>
       <CollectionPicker path={path} />
       <span className="ml-auto flex shrink-0 items-center gap-2.5 tabular-nums">

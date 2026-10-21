@@ -15,6 +15,7 @@ import {
 import { Kbd } from '@/components/ui/kbd'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
 import { actions, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -232,6 +233,7 @@ export function TabStrip() {
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-56">
+                    <ContextMenuItem onSelect={() => actions.reveal(tab.path)}>{REVEAL_LABEL}</ContextMenuItem>
                     <ContextMenuItem onSelect={() => navigator.clipboard.writeText(tab.path)}>Copy path</ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => setState({ groupDialog: { paths: [tab.path] } })}>Add to new group…</ContextMenuItem>

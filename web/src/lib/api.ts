@@ -183,6 +183,13 @@ export async function completePath(prefix: string, signal?: AbortSignal): Promis
   return (await request('/api/complete?path=' + encodeURIComponent(prefix), undefined, { signal })).json()
 }
 
+/** Show a file or folder in the system file manager (Finder on macOS). */
+export function reveal(path: string) {
+  return postJSON<{ status: string }>('/api/reveal', { path })
+}
+
+export const REVEAL_LABEL = /Mac/i.test(navigator.platform) ? 'Reveal in Finder' : 'Show in folder'
+
 /** Fire-and-forget final save while the page unloads. */
 export function beacon(path: string, body: unknown) {
   fetch(path, {

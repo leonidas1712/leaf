@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import type { Collection, GroupColor, Workspace } from '@/lib/api'
+import { REVEAL_LABEL, type Collection, type GroupColor, type Workspace } from '@/lib/api'
 import { childrenOf, colorOf, documentCount, trail, within } from '@/lib/collections'
 import {
   acceptDrop,
@@ -90,6 +90,7 @@ function DocumentRow({ path, collection, depth, active, missing }: {
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuItem onSelect={() => actions.open(path)}>Open</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.reveal(path)}>{REVEAL_LABEL}</ContextMenuItem>
         <ContextMenuItem onSelect={() => navigator.clipboard.writeText(path)}>Copy path</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.collectionRemove(collection, [path])}>Remove from {collection.name}</ContextMenuItem>

@@ -13,6 +13,7 @@ import {
   beacon,
   connected,
   postJSON,
+  reveal,
   sendAction,
   type Entry,
   type Collection,
@@ -385,6 +386,8 @@ export const actions = {
   removeFolder: (path: string) =>
     act({ action: 'remove-folder', path }, (ws) => ({ ...ws, folders: ws.folders.filter((f) => f !== path) })),
   refresh: () => act({ action: 'refresh' }),
+  /** Not a workspace change, so it bypasses the action queue; failures surface as a toast. */
+  reveal: (path: string) => reveal(path).catch((error: Error) => toast.error(error.message)),
 
   groupCreate: (name: string, color: GroupColor, paths: string[]) => act({ action: 'group-create', name, color, paths }),
   groupUpdate: (group: TabGroup, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>) =>
