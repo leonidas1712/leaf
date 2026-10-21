@@ -141,10 +141,43 @@ export function resolve(anchor: CommentAnchor, index: TextIndex): Resolution {
   return { state: 'detached' }
 }
 
-/** Anchor for the current text selection inside `root`, null when nothing there is selected. */
-export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null {
+/*
+ * The last text selection made in the document. Clicking a menu or button can clear the live
+ * selection before its action runs, so actions like "attach to selected text" read this instead.
+ */
+let remembered: Range | null = null
+let rememberedAt = 0
+
+/**
+ * The part of the selection inside `root`. Triple-clicking the last paragraph selects up to the
+ * start of whatever follows the document, so the raw range can end outside it.
+ */
+export function selectionIn(root: HTMLElement | null): Range | null {
   const selection = document.getSelection()
   if (!root || !selection || selection.isCollapsed || !selection.rangeCount) return null
-  const range = selection.getRangeAt(0)
-  return root.contains(range.commonAncestorContainer) ? anchorFor(range, root, buildIndex(root)) : null
+  const range = selection.getRangeAt(0).cloneRange()
+  if (!range.intersectsNode(root)) return null
+  if (!root.contains(range.startContainer)) range.setStart(root, 0)
+  if (!root.contains(range.endContainer)) range.setEnd(root, root.childNodes.length)
+  return range.collapsed ? null : range
+}
+
+export function rememberSelection(root: HTMLElement | null) {
+  const range = selectionIn(root)
+  if (!range) return
+  remembered = range
+  rememberedAt = Date.now()
+}
+
+/** Anchor for the current, or recently made (≤60 s), text selection inside `root`; else null. */
+export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null {
+  if (!root) return null
+  rememberSelection(root)
+  const range = Date.now() - rememberedAt < 60_000 ? remembered : null
+  if (!range || range.collapsed || !root.contains(range.commonAncestorContainer)) return null
+  return anchorFor(range, root, buildIndex(root))
+}
+
+export function forgetSelection() {
+  remembered = null
 }

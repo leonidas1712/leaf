@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Comment, CommentReply } from '@/lib/api'
-import { selectionAnchor } from '@/lib/anchors'
+import { forgetSelection, selectionAnchor } from '@/lib/anchors'
 import { actions, AUTHOR, setState } from '@/lib/store'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -324,8 +324,9 @@ export function CommentCard({
                 <DropdownMenuItem
                   onSelect={() => {
                     const anchor = selectionAnchor(document.querySelector<HTMLElement>('article.prose-leaf'))
-                    if (anchor) actions.commentAnchor(comment, anchor)
-                    else toast('Select the text this comment belongs to first')
+                    if (!anchor) return toast('Select the text this comment belongs to first')
+                    actions.commentAnchor(comment, anchor)
+                    forgetSelection()
                   }}
                 >
                   <TextCursorInput /> Attach to selected text

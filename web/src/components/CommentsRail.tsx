@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Comment } from '@/lib/api'
-import { buildIndex, rangeBetween, resolve, selectionAnchor, type TextIndex } from '@/lib/anchors'
+import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, type TextIndex } from '@/lib/anchors'
 import { displayPath } from '@/lib/paths'
 import { actions, getState, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -246,11 +246,9 @@ export function SelectionCommentButton({ path, article }: { path: string; articl
 
   useEffect(() => {
     const update = () => {
-      const selection = document.getSelection()
-      const node = article.current
-      if (!selection || selection.isCollapsed || !node || !selection.rangeCount) return setSpot(null)
-      const range = selection.getRangeAt(0)
-      if (!node.contains(range.commonAncestorContainer)) return setSpot(null)
+      const range = selectionIn(article.current)
+      if (!range) return setSpot(null)
+      rememberSelection(article.current)
       const rects = range.getClientRects()
       const last = rects[rects.length - 1] ?? range.getBoundingClientRect()
       setSpot({ x: last.right, y: last.top })
@@ -280,9 +278,9 @@ export function SelectionCommentButton({ path, article }: { path: string; articl
 
 /** Start a draft from the current selection, or on the whole document when nothing is selected. */
 export function startComment(path: string, root: HTMLElement | null) {
-  const selection = document.getSelection()
-  const anchor = selectionAnchor(root)
-  if (selection && !selection.isCollapsed && !anchor && root?.contains(selection.anchorNode)) {
+  const live = !!selectionIn(root)
+  const anchor = live ? selectionAnchor(root) : null
+  if (live && !anchor) {
     toast('Select text in the document to comment on it')
     return
   }
