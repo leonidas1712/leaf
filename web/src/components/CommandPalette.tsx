@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, Code2, Copy, FileText, FolderPlus, FilePlus, Layers, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { BookOpen, Code2, Copy, FileText, FolderPlus, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { trail } from '@/lib/collections'
 import { groupStyle } from './groups'
 import {
   CommandDialog,
@@ -90,8 +91,14 @@ export function CommandPalette() {
           { label: 'Close current tab', icon: X, shortcut: 'X', run: () => actions.close(workspace.active!) },
         ]
       : []),
+    { label: 'New collection…', icon: Library, run: () => setState({ collectionDialog: { parent: null } }) },
     { label: 'Reload folders and documents', icon: RefreshCw, run: () => actions.refresh() },
   ].filter((command) => !needle || command.label.toLowerCase().includes(needle))
+
+  const allCollections = workspace.collections ?? []
+  const collections = needle
+    ? allCollections.filter((c) => trail(allCollections, c.id).join(' ').toLowerCase().includes(needle))
+    : []
 
   const groups = (workspace.groups ?? []).filter((group) => !needle || group.name.toLowerCase().includes(needle))
   const openGroup = (id: string) => {
@@ -107,9 +114,11 @@ export function CommandPalette() {
   const first = needle
     ? matches[0]
       ? 'doc:' + matches[0]
-      : groups[0]
-        ? 'group:' + groups[0].id
-        : commands[0] && 'cmd:' + commands[0].label
+      : collections[0]
+        ? 'collection:' + collections[0].id
+        : groups[0]
+          ? 'group:' + groups[0].id
+          : commands[0] && 'cmd:' + commands[0].label
     : workspace.tabs[0] && 'doc:' + workspace.tabs[0].path
   const documents = needle ? matches : workspace.tabs.map((tab) => tab.path)
 
@@ -148,6 +157,21 @@ export function CommandPalette() {
                   <span className="shrink-0 rounded bg-accent px-1.5 text-[10.5px] text-ink-muted">open</span>
                 )}
                 <span className="ml-auto max-w-[50%] truncate text-[11.5px] text-ink-faint">{displayPath(path)}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {collections.length > 0 && (
+          <CommandGroup heading="Collections">
+            {collections.map((collection) => (
+              <CommandItem
+                key={'collection:' + collection.id}
+                value={'collection:' + collection.id}
+                onSelect={run(() => actions.collectionOpen(collection))}
+              >
+                <Library />
+                <span className="truncate">{trail(allCollections, collection.id).join(' › ')}</span>
+                <span className="ml-auto text-[11.5px] text-ink-faint">Open as group</span>
               </CommandItem>
             ))}
           </CommandGroup>

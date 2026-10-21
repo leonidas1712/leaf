@@ -27,6 +27,7 @@ import { basename, displayPath } from '@/lib/paths'
 import { actions, setState, TEXT_FILE, toggleExpanded, useLeaf } from '@/lib/store'
 import { buildTree, type TreeNode } from '@/lib/tree'
 import { cn } from '@/lib/utils'
+import { CollectionsSection } from './collections'
 import { GroupMenuItems, groupStyle } from './groups'
 import { LeafMark } from './LeafMark'
 import { carriesPath, draggedPath, startDrag } from '@/lib/dnd'
@@ -305,6 +306,7 @@ export function Sidebar() {
       </div>
 
       <nav aria-label="Library" className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {!search && <CollectionsSection workspace={workspace} />}
         {!search && (
           <Section
             title="Groups"

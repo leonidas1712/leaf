@@ -3,6 +3,7 @@ import { Check, Copy, RefreshCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { displayPath } from '@/lib/paths'
 import { useLeaf } from '@/lib/store'
+import { CollectionPicker } from './CollectionPicker'
 import { groupStyle } from './groups'
 
 function ago(timestamp: number, now: number) {
@@ -87,6 +88,7 @@ export function DocumentHeader({
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied path' : 'Copy full path for an agent'}</TooltipContent>
       </Tooltip>
+      <CollectionPicker path={path} />
       <span className="ml-auto flex shrink-0 items-center gap-2.5 tabular-nums">
         {origin?.kind === 'aboard' && (
           <span title={[origin.server, origin.board, origin.file].filter(Boolean).join(' · ')}>

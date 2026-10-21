@@ -15,6 +15,7 @@ import {
   postJSON,
   sendAction,
   type Entry,
+  type Collection,
   type GroupColor,
   type Hydration,
   type ReaderPrefs,
@@ -47,9 +48,12 @@ export interface LeafState {
   outlineOpen: boolean
   sidebarOpen: boolean
   paletteOpen: boolean
-  openDialog: null | 'open-file' | 'open-folder'
+  /** Path prompt: open a document, add a folder, or add a document to a collection. */
+  openDialog: null | 'open-file' | 'open-folder' | { collection: string }
   /** Create a group from these tab paths, or edit an existing group. */
   groupDialog: null | { paths: string[] } | { group: TabGroup }
+  /** Create a collection (optionally nested, optionally seeded with documents), or edit one. */
+  collectionDialog: null | { parent: string | null; paths?: string[] } | { collection: Collection }
   headings: Heading[]
   status: string
   /** Change markers for open documents; a new value means the file changed on disk. */
@@ -71,6 +75,7 @@ let state: LeafState = {
   paletteOpen: false,
   openDialog: null,
   groupDialog: null,
+  collectionDialog: null,
   headings: [],
   status: '',
   stamps: {},
@@ -133,7 +138,10 @@ function view(ws: Workspace) {
     source: ws.source,
     search: state.search,
     sidebarWidth: state.sidebarWidth,
-    expanded: [...state.expanded],
+    // The server rejects expansion keys for collections that no longer exist.
+    expanded: [...state.expanded].filter(
+      (key) => !key.startsWith('collection:') || ws.collections?.some((c) => 'collection:' + c.id === key),
+    ),
   }
 }
 
@@ -305,7 +313,8 @@ export async function act(action: Record<string, unknown>, optimistic?: Optimist
       }
       const response = await sendAction(action)
       // These add tabs or folders whose file grants only arrive with a full hydration.
-      if (['open-file', 'open-folder', 'refresh', 'group-open'].includes(String(action.action))) forceHydrate = true
+      const grants = ['open-file', 'open-folder', 'refresh', 'group-open', 'collection-open', 'collection-add', 'collection-create']
+      if (grants.includes(String(action.action))) forceHydrate = true
       else {
         revision = response.revision
         setState({ workspace: response.workspace })
@@ -387,6 +396,36 @@ export const actions = {
     }),
   readerPrefs: (patch: Partial<ReaderPrefs>) =>
     act({ action: 'reader', ...patch }, (ws) => ({ ...ws, reader: { ...DEFAULT_READER, ...ws.reader, ...patch } })),
+
+  collectionCreate: (name: string, parent: string | null, color: GroupColor | null, paths: string[] = []) =>
+    act({ action: 'collection-create', name, parent, ...(color ? { color } : {}), ...(paths.length ? { paths } : {}) }),
+  collectionUpdate: (collection: Collection, patch: { name?: string; color?: GroupColor | null }) =>
+    act({ action: 'collection-update', collection: collection.id, ...patch }, (ws) => ({
+      ...ws,
+      collections: ws.collections?.map((c) => (c.id === collection.id ? { ...c, ...patch } : c)),
+    })),
+  collectionMove: (collection: Collection, parent: string | null) =>
+    act({ action: 'collection-move', collection: collection.id, parent }, (ws) => ({
+      ...ws,
+      collections: ws.collections?.map((c) => (c.id === collection.id ? { ...c, parent } : c)),
+    })),
+  collectionDelete: (collection: Collection) => act({ action: 'collection-delete', collection: collection.id }),
+  collectionAdd: (collection: Collection, paths: string[]) =>
+    act({ action: 'collection-add', collection: collection.id, paths }, (ws) => ({
+      ...ws,
+      collections: ws.collections?.map((c) =>
+        c.id === collection.id ? { ...c, docs: [...c.docs, ...paths.filter((p) => !c.docs.includes(p))] } : c,
+      ),
+    })),
+  collectionRemove: (collection: Collection, paths: string[]) =>
+    act({ action: 'collection-remove', collection: collection.id, paths }, (ws) => ({
+      ...ws,
+      collections: ws.collections?.map((c) => (c.id === collection.id ? { ...c, docs: c.docs.filter((p) => !paths.includes(p)) } : c)),
+    })),
+  collectionOpen: (collection: Collection) => {
+    reader.rememberActiveScroll()
+    return act({ action: 'collection-open', collection: collection.id })
+  },
 }
 
 export const DEFAULT_READER: ReaderPrefs = { fontSize: 16, width: 'normal', font: 'sans' }

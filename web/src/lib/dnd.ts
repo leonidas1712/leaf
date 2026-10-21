@@ -25,3 +25,19 @@ export function draggedPath(event: React.DragEvent): string | null {
 export function draggedFromTab(event: React.DragEvent) {
   return event.dataTransfer.types.includes(TAB_TYPE)
 }
+
+/* Collections drag separately so they can only be dropped where nesting makes sense. */
+export const COLLECTION_TYPE = 'application/x-leaf-collection'
+
+export function startCollectionDrag(event: React.DragEvent, id: string) {
+  event.dataTransfer.setData(COLLECTION_TYPE, id)
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+export function carriesCollection(event: React.DragEvent) {
+  return event.dataTransfer.types.includes(COLLECTION_TYPE)
+}
+
+export function draggedCollection(event: React.DragEvent): string | null {
+  return event.dataTransfer.getData(COLLECTION_TYPE) || null
+}

@@ -21,6 +21,15 @@ export interface TabGroup {
   saved?: SavedTab[]
 }
 
+/** A Leaf-only folder of document references; documents stay where they are on disk. */
+export interface Collection {
+  id: string
+  name: string
+  parent: string | null
+  color: GroupColor | null
+  docs: string[]
+}
+
 export interface ReaderPrefs {
   fontSize: number
   width: 'normal' | 'wide' | 'full'
@@ -51,6 +60,7 @@ export interface Workspace {
   sidebarWidth: number
   expanded: string[]
   groups?: TabGroup[]
+  collections?: Collection[]
   sources?: Record<string, DocumentSource>
   reader?: ReaderPrefs
 }
@@ -121,6 +131,16 @@ export function sendAction(action: Record<string, unknown>): Promise<ActionRespo
 
 export async function fetchFile(id: string, signal?: AbortSignal): Promise<Blob> {
   return (await request('/api/file?id=' + encodeURIComponent(id), undefined, { signal })).blob()
+}
+
+export interface Completion {
+  path: string
+  kind: 'dir' | 'file'
+}
+
+/** Children of the deepest existing directory in a typed path, filtered by the typed prefix. */
+export async function completePath(prefix: string, signal?: AbortSignal): Promise<Completion[]> {
+  return (await request('/api/complete?path=' + encodeURIComponent(prefix), undefined, { signal })).json()
 }
 
 /** Fire-and-forget final save while the page unloads. */

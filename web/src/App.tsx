@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { CollectionDialog } from '@/components/collections'
 import { CommandPalette } from '@/components/CommandPalette'
 import { DocumentView } from '@/components/DocumentView'
 import { EmptyState } from '@/components/EmptyState'
@@ -37,7 +38,8 @@ function onKey(event: KeyboardEvent) {
     setState({ outlineOpen: !outlineOpen })
     return
   }
-  if (mod || event.altKey || typing(event.target) || paletteOpen || getState().openDialog || getState().groupDialog || !workspace) return
+  const { openDialog, groupDialog, collectionDialog } = getState()
+  if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || !workspace) return
   const key = event.key
   const active = workspace.active
   const bindings: Record<string, (() => unknown) | undefined> = {
@@ -136,6 +138,7 @@ export default function App() {
       <CommandPalette />
       <OpenDialog />
       <GroupDialog />
+      <CollectionDialog />
       <Toaster theme={theme} position="bottom-right" />
     </TooltipProvider>
   )
