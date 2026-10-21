@@ -197,3 +197,14 @@ Quote-only creation fills missing context and heading hints when the quote has o
 A `changed` location means the original surroundings identify replacement text. Inspect that text before editing or resolving the comment.
 The fallback requires a unique prefix, at least 12 characters on each side, and a bounded gap.
 The Markdown view includes this state and omits empty heading hints.
+
+## Reveal a file or folder
+
+```sh
+leaf reveal /path/plan.md --json
+leaf reveal /path/project --json
+```
+
+Reveal opens the system file manager for a path Leaf already knows. It does not change tabs or saved revisions.
+macOS selects the target in Finder. Linux opens the folder or the parent of a file.
+Missing or unknown paths return an error. Open a document or add its folder before revealing it.

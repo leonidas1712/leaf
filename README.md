@@ -190,6 +190,8 @@ The installer points the `leaf` command at this checkout, so keep it in place. A
 installations, run `python3 install.py` again. To uninstall, run `leaf stop` and remove `~/.local/bin/leaf`; your
 documents and saved workspace are untouched.
 
+Use `leaf reveal PATH` to show a known document or folder in Finder (macOS) or the file manager (Linux).
+
 ## Document comments for agents
 
 Leaf stores comment threads separately from document files. Agents can read, reply, and resolve them through the CLI.

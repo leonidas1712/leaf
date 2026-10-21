@@ -208,6 +208,40 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(document.read_text(), '# Plan\nA **bold** statement.')
                 server.SESSIONS.clear()
 
+    def test_reveal_endpoint_and_cli_are_authenticated_and_revision_free(self):
+        """Reveal rejects foreign callers and launches known paths without a workspace commit."""
+        import os
+        import subprocess
+        import sys
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            document = root / 'sample.md'
+            document.write_text('sample')
+            workspace = Workspace(root / 'workspace.json')
+            workspace.action({'action': 'open-file', 'path': str(document)})
+            before = workspace.path.read_bytes()
+            (root / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            command = {'path': str(document)}
+            headers = {'X-Leaf-Token': server.TOKEN}
+            with patch.object(server, 'WORKSPACE', workspace), patch('reveal.sys.platform', 'darwin'), \
+                    patch('reveal.subprocess.run', return_value=Mock(returncode=0)) as launch:
+                self.assertEqual(self.request('/api/reveal', command)[0], 403)
+                self.assertEqual(self.request('/api/reveal', command, dict(headers, Origin='https://example.test'))[0], 403)
+                launch.assert_not_called()
+                code, body = self.request('/api/reveal', command, headers)
+                self.assertEqual(code, 200)
+                self.assertEqual(json.loads(body), {'status': 'revealed'})
+                self.assertEqual(self.request('/api/reveal', {'path': str(root / 'missing')}, headers)[0], 400)
+                self.assertEqual(workspace.path.read_bytes(), before)
+            with patch.object(server, 'WORKSPACE', workspace), patch.object(server, 'reveal_path', return_value={'status': 'revealed'}) as reveal:
+                result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), 'reveal', str(document), '--json'],
+                                        env=dict(os.environ, LEAF_STATE_DIR=str(root)), capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), {'status': 'revealed'})
+                self.assertEqual(reveal.call_args.args[0], str(document))
+                self.assertEqual(workspace.path.read_bytes(), before)
+
     def test_explicit_session_and_receipt(self):
         """Reject ambiguous readers and acknowledge only the addressed session."""
         headers = {'X-Leaf-Token': server.TOKEN}

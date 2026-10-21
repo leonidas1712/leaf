@@ -127,6 +127,7 @@ def make_parser():
         'stop': 'Stop the service, retaining your workspace', 'restart': 'Restart with saved tabs and folders',
         'status': 'Show service status and installation paths', 'state': 'Show the saved workspace',
         'tabs': 'List open tabs', 'folders': 'List sidebar folders', 'recent': 'List recent paths',
+        'reveal': 'Show a known file or folder in the system file manager',
         'sessions': 'List connected browser readers', 'open': 'Open files or add folders',
         'open-file': 'Open one document', 'open-folder': 'Add a sidebar folder',
         'close-tab': 'Close a tab (defaults to active)', 'close': 'Alias for close-tab',
@@ -150,7 +151,7 @@ def make_parser():
             child.add_argument('paths', nargs='+', metavar='PATH')
         elif name in ('close', 'close-tab', 'search', 'help'):
             child.add_argument('paths', nargs='?', default=None, metavar='VALUE')
-        elif name in ('open-file', 'open-folder', 'focus', 'focus-tab', 'remove-folder', 'expand-folder', 'collapse-folder', 'heading'):
+        elif name in ('reveal', 'open-file', 'open-folder', 'focus', 'focus-tab', 'remove-folder', 'expand-folder', 'collapse-folder', 'heading'):
             child.add_argument('paths', metavar='PATH')
         elif name in ('theme', 'view'):
             child.add_argument('paths', choices=('light', 'dark', 'system') if name == 'theme' else ('source', 'formatted'))
@@ -327,7 +328,10 @@ def main():
             return
         args.action, args.paths = 'theme', [args.value]
     action = args.action
-    if action == 'stop':
+    if action == 'reveal':
+        start()
+        result = request('/api/reveal', {'path': str(Path(args.paths[0]).expanduser().resolve())}, timeout=8)
+    elif action == 'stop':
         result = stop()
     elif action == 'restart':
         stop()

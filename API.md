@@ -139,3 +139,15 @@ If exact matching fails, the locator can identify a changed passage from its old
 Both prefix and suffix must contain at least 12 characters. The prefix must occur exactly once.
 The suffix must follow within `quote.length * 3 + 200` characters, with a nonempty passage between them.
 This fallback returns `changed` with current lines. It never changes the stored quote or deletes the thread.
+
+## Reveal in the system file manager
+
+`POST /api/reveal` accepts `{path: "/absolute/path"}` with the usual token, Host and Origin checks.
+It returns `{status: "revealed"}` when the system command succeeds. Invalid paths and launch failures return HTTP 400 with an error.
+This operation does not change the workspace or its revision.
+
+Allowed targets are existing workspace files, tabs, folders, collection documents, and subfolders inside a current sidebar folder.
+A granted file inside a current sidebar folder is also allowed. Unlisted files inside a folder remain disallowed until granted.
+Resolved paths enforce containment. Symlinks cannot grant access outside a sidebar folder.
+macOS runs `open -R PATH`. Linux runs `xdg-open` on the folder or the parent of a file.
+Commands use argument lists without a shell. The response confirms command success, not visible file-manager state.

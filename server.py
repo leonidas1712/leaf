@@ -12,6 +12,7 @@ import webbrowser
 import fcntl
 from workspace import Workspace, TEXT_EXTENSIONS
 from comments import list_comments
+from reveal import reveal_path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -240,6 +241,8 @@ class Handler(BaseHTTPRequestHandler):
                 if self.path == '/api/stop':
                     self.respond({'status': 'stopping'})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
+                elif self.path == '/api/reveal':
+                    self.respond(reveal_path(data.get('path'), WORKSPACE.data, FILES.values()))
                 elif self.path == '/api/action':
                     previous_revision = WORKSPACE.data['revision']
                     workspace = WORKSPACE.action(data)
