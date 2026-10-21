@@ -132,3 +132,11 @@ export function resolve(anchor: CommentAnchor, index: TextIndex): Resolution {
   }
   return { state: 'detached' }
 }
+
+/** Anchor for the current text selection inside `root`, null when nothing there is selected. */
+export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null {
+  const selection = document.getSelection()
+  if (!root || !selection || selection.isCollapsed || !selection.rangeCount) return null
+  const range = selection.getRangeAt(0)
+  return root.contains(range.commonAncestorContainer) ? anchorFor(range, root, buildIndex(root)) : null
+}

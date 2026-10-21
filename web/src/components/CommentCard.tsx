@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, CircleDot, Copy, Loader, MoreHorizontal, Pencil, RotateCcw, Trash2, TriangleAlert } from 'lucide-react'
+import { Check, CircleDot, Copy, Loader, MoreHorizontal, Pencil, RotateCcw, TextCursorInput, Trash2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +10,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Comment, CommentReply } from '@/lib/api'
+import { selectionAnchor } from '@/lib/anchors'
 import { actions, AUTHOR, setState } from '@/lib/store'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 const AVATAR_COLORS = ['--g-purple', '--g-blue', '--g-orange', '--g-pink', '--g-cyan', '--g-red']
@@ -310,6 +312,17 @@ export function CommentCard({
               {comment.status !== 'open' && (
                 <DropdownMenuItem onSelect={() => actions.commentStatus(comment, 'open')}>
                   <CircleDot /> Mark open
+                </DropdownMenuItem>
+              )}
+              {comment.anchor && placement !== 'attached' && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const anchor = selectionAnchor(document.querySelector<HTMLElement>('article.prose-leaf'))
+                    if (anchor) actions.commentAnchor(comment, anchor)
+                    else toast('Select the text this comment belongs to first')
+                  }}
+                >
+                  <TextCursorInput /> Attach to selected text
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onSelect={() => navigator.clipboard.writeText(comment.id)}>

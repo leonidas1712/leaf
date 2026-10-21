@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Comment } from '@/lib/api'
-import { anchorFor, buildIndex, rangeBetween, resolve, type TextIndex } from '@/lib/anchors'
+import { buildIndex, rangeBetween, resolve, selectionAnchor, type TextIndex } from '@/lib/anchors'
 import { displayPath } from '@/lib/paths'
 import { actions, getState, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -281,14 +281,10 @@ export function SelectionCommentButton({ path, article }: { path: string; articl
 /** Start a draft from the current selection, or on the whole document when nothing is selected. */
 export function startComment(path: string, root: HTMLElement | null) {
   const selection = document.getSelection()
-  let anchor = null
-  if (root && selection && !selection.isCollapsed && selection.rangeCount) {
-    const range = selection.getRangeAt(0)
-    if (root.contains(range.commonAncestorContainer)) anchor = anchorFor(range, root, buildIndex(root))
-    if (!anchor) {
-      toast('Select text in the document to comment on it')
-      return
-    }
+  const anchor = selectionAnchor(root)
+  if (selection && !selection.isCollapsed && !anchor && root?.contains(selection.anchorNode)) {
+    toast('Select text in the document to comment on it')
+    return
   }
   setState({ draft: { path, anchor }, activeComment: 'draft', sidePanel: 'comments', outlineOpen: true })
 }
