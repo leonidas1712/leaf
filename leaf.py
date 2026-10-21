@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 
 BASE = Path(__file__).resolve().parent
@@ -32,6 +33,17 @@ def running():
         return None
 
 
+def saved_port():
+    """Reuse the saved loopback port after stop or restart without trusting other URL fields."""
+    connection = RUNTIME / 'connection.json'
+    if not connection.exists():
+        return 18764
+    url = urlparse(json.loads(connection.read_text())['url'])
+    if url.scheme != 'http' or url.hostname != '127.0.0.1' or not url.port:
+        raise ValueError('Saved Leaf connection must name an HTTP loopback port.')
+    return url.port
+
+
 def start():
     """Start one detached server and wait for authenticated readiness."""
     current = running()
@@ -40,7 +52,7 @@ def start():
     RUNTIME.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(RUNTIME / 'server.log', os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, 'ab', buffering=0) as log:
-        process = subprocess.Popen([sys.executable, str(BASE / 'server.py')], stdin=subprocess.DEVNULL,
+        process = subprocess.Popen([sys.executable, str(BASE / 'server.py'), '--port', str(saved_port())], stdin=subprocess.DEVNULL,
                                    stdout=log, stderr=log, start_new_session=True, close_fds=True)
     for _ in range(50):
         current = running()

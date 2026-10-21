@@ -36,6 +36,23 @@ class CliTests(unittest.TestCase):
                     patch.object(leaf.subprocess, 'Popen', return_value=process), patch.object(leaf.time, 'sleep'):
                 self.assertEqual(leaf.start(), ready)
 
+    def test_start_preserves_saved_isolated_port(self):
+        """A stopped isolated instance starts on its recorded port rather than the default."""
+        import json
+        from unittest.mock import patch, Mock
+        import leaf
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'connection.json').write_text(json.dumps({'url': 'http://127.0.0.1:18765'}))
+            with patch.object(leaf, 'RUNTIME', root), patch.object(leaf, 'running', side_effect=[None, {'app': 'leaf'}]), \
+                    patch.object(leaf.subprocess, 'Popen', return_value=Mock()) as spawn:
+                leaf.start()
+                self.assertEqual(spawn.call_args.args[0][-2:], ['--port', '18765'])
+            with patch.object(leaf, 'RUNTIME', root):
+                (root / 'connection.json').write_text(json.dumps({'url': 'https://example.test:18765'}))
+                with self.assertRaises(ValueError):
+                    leaf.saved_port()
+
     def test_comment_listing_works_without_server(self):
         """Offline listing derives locations without starting or modifying a workspace."""
         import json

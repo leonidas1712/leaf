@@ -51,7 +51,7 @@ Tabs, order, active document, scroll positions, folders, recent paths, and prefe
 Theme changes from either the UI or CLI update the same saved preference. There is no separate per-folder configuration.
 All connected readers share the workspace. Stale browser updates cannot overwrite newer revisions.
 `status`, `state`, `tabs`, `folders`, `recent`, and preference reads work when stopped.
-Mutations start the server if needed. Closing a browser retains tabs. Stopping Leaf retains state.
+Mutations start the server if needed. Closing a browser retains tabs. Stopping Leaf retains state. Start and restart reuse the saved loopback port, including isolated instances.
 
 `saved` confirms durable storage. `applied` confirms a reader synchronized the requested revision.
 Neither result proves visual layout quality. Inspect the user's browser when visual proof matters.
