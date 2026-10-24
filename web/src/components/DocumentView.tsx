@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchFile, type Entry, type ReaderPrefs } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdown, resolveRelative } from '@/lib/markdown'
 import { renderDiagram } from '@/lib/mermaid'
-import { actions, reader, scrolls, setState, TEXT_FILE, useLeaf } from '@/lib/store'
+import { actions, reader, scrolls, setState, TEXT_FILE, useLeaf, type Heading } from '@/lib/store'
 import { diskChanged } from '@/lib/drafts'
 import { EditBar } from './EditBar'
+import { FindBar } from './FindBar'
 import { Editor } from './Editor'
 import { DiagramPanel, type DiagramResult } from './DiagramPanel'
 import { DocumentHeader } from './DocumentHeader'
@@ -30,6 +31,9 @@ const CODE_LANGUAGE: Record<string, string> = { json: 'json', yaml: 'yaml', yml:
  * The reading surface. Rendering is sequenced: a newer request always wins, scroll restores
  * instantly only after diagrams and images have laid out, and the sync loop is held off while
  * a render is in flight so "applied" means the reader really shows the revision.
+ *
+ * In a split each pane has its own view. Only the focused one answers live commands and
+ * publishes its headings; pressing anywhere in the other pane focuses it.
  */
 export function DocumentView({
   path,
@@ -39,6 +43,8 @@ export function DocumentView({
   entries,
   stamp,
   prefs,
+  focused = true,
+  compact = false,
 }: {
   path: string
   entry: Entry | undefined
@@ -47,7 +53,11 @@ export function DocumentView({
   entries: Map<string, Entry>
   stamp: string | null | undefined
   prefs: ReaderPrefs
+  focused?: boolean
+  /** Hide the side panel when the pane is narrow, as in a side-by-side split. */
+  compact?: boolean
 }) {
+  const pane = useId()
   const viewport = useRef<HTMLDivElement>(null)
   const article = useRef<HTMLElement>(null)
   const sequence = useRef(0)
@@ -60,6 +70,15 @@ export function DocumentView({
   const [failure, setFailure] = useState<Failure | null>(null)
   const [width, setWidth] = useState(720)
   const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [outline, setOutline] = useState<{ headings: Heading[]; status: string }>({ headings: [], status: '' })
+  const busy = useRef(false)
+  const setBusy = useCallback(
+    (value: boolean) => {
+      busy.current = value
+      reader.markRendering(pane, value)
+    },
+    [pane],
+  )
 
   // A changed stamp for the same document means an agent rewrote it: re-render in place.
   const lastStamp = useRef<{ path: string; stamp: string | null | undefined } | null>(null)
@@ -71,28 +90,40 @@ export function DocumentView({
   }, [path, stamp])
 
   const remember = useCallback(() => {
-    if (displayed.current && viewport.current && !reader.rendering)
+    if (displayed.current && viewport.current && !busy.current)
       scrolls.set(displayed.current, viewport.current.scrollTop)
   }, [])
 
+  const scrollToHeading = useCallback((target: string) => {
+    const heading = [...(article.current?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? [])].find(
+      (node) => node.id === target || node.textContent?.replace(/#$/, '').trim() === target,
+    )
+    if (!heading) return false
+    heading.scrollIntoView({ behavior: 'instant', block: 'start' })
+    heading.classList.remove('heading-flash')
+    void heading.offsetWidth
+    heading.classList.add('heading-flash')
+    return true
+  }, [])
+
   useEffect(() => {
+    if (!focused) return
     reader.rememberActiveScroll = remember
     reader.scrollTop = () => Math.round(viewport.current?.scrollTop ?? 0)
     reader.applyScroll = (target, top) => {
       if (displayed.current === target) viewport.current?.scrollTo({ top, behavior: 'instant' })
     }
-    reader.scrollToHeading = (target) => {
-      const heading = [...(article.current?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? [])].find(
-        (node) => node.id === target || node.textContent?.replace(/#$/, '').trim() === target,
-      )
-      if (!heading) return false
-      heading.scrollIntoView({ behavior: 'instant', block: 'start' })
-      heading.classList.remove('heading-flash')
-      void heading.offsetWidth
-      heading.classList.add('heading-flash')
-      return true
-    }
-  }, [remember])
+    reader.scrollToHeading = scrollToHeading
+  }, [focused, remember, scrollToHeading])
+
+  useEffect(() => {
+    reader.headingFinders.set(pane, scrollToHeading)
+    return () => void reader.headingFinders.delete(pane)
+  }, [pane, scrollToHeading])
+
+  useEffect(() => {
+    if (focused) setState(outline)
+  }, [focused, outline])
 
   useEffect(() => {
     const node = article.current?.parentElement
@@ -122,7 +153,7 @@ export function DocumentView({
     const stale = () => run !== sequence.current
     const controller = new AbortController()
     remember()
-    reader.rendering = true
+    setBusy(true)
     displayed.current = null
     ;(async () => {
       try {
@@ -206,20 +237,20 @@ export function DocumentView({
         setFailure(null)
         setRendered({ path, html: scratch.innerHTML, stats: readingStats(text), diagrams: results })
         // Keep the live nodes: mounts are re-queried from the committed article below.
-        setState({ headings, status: `${readingStats(text).words.toLocaleString()} words` })
+        setOutline({ headings, status: `${readingStats(text).words.toLocaleString()} words` })
       } catch (error) {
         if (stale() || controller.signal.aborted) return
         setRendered(null)
         setFailure({ path, message: (error as Error).message })
-        setState({ headings: [], status: (error as Error).message })
-        reader.rendering = false
+        setOutline({ headings: [], status: (error as Error).message })
+        setBusy(false)
       }
     })()
     return () => {
       controller.abort()
-      reader.rendering = false
+      setBusy(false)
     }
-  }, [path, granted, grantId, grantError, source, theme, remember, updatedAt, preview])
+  }, [path, granted, grantId, grantError, source, theme, remember, setBusy, updatedAt, preview])
 
   // Switching documents hides the old article, which clamps scrollTop to 0 and fires a scroll
   // event on the next frame. Forget the old document first so that event can't overwrite its
@@ -248,8 +279,8 @@ export function DocumentView({
     if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' })
     else viewport.current.scrollTo({ top: scrolls.get(rendered.path) ?? 0, behavior: 'instant' })
     displayed.current = rendered.path
-    reader.rendering = false
-  }, [mounts, rendered])
+    setBusy(false)
+  }, [mounts, rendered, setBusy])
 
   useEffect(() => () => urls.current.forEach(URL.revokeObjectURL), [])
 
@@ -271,7 +302,7 @@ export function DocumentView({
     if (/^(https?:|mailto:)/i.test(href)) {
       window.open(href, '_blank', 'noopener,noreferrer')
     } else if (href.startsWith('#')) {
-      reader.scrollToHeading(decodeURIComponent(href.slice(1)))
+      scrollToHeading(decodeURIComponent(href.slice(1)))
     } else if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
       setState({ status: 'This link type is not supported.' })
     } else {
@@ -282,7 +313,7 @@ export function DocumentView({
         return
       }
       if (target === path) {
-        if (hash) reader.scrollToHeading(decodeURIComponent(hash))
+        if (hash) scrollToHeading(decodeURIComponent(hash))
         return
       }
       pendingHash.current = hash ? decodeURIComponent(hash) : null
@@ -297,6 +328,7 @@ export function DocumentView({
   const draft = useLeaf((s) => s.drafts[path])
   // While a draft is open, follow the file on disk: reload a clean draft, hold changes for a dirty one.
   const hasDraft = !!draft
+  const finding = useLeaf((s) => s.findOpen) && focused && !!current && mode !== 'edit'
   useEffect(() => {
     if (hasDraft && stamp && grantId) diskChanged(path, grantId).catch(() => {})
   }, [hasDraft, stamp, grantId, path])
@@ -305,8 +337,14 @@ export function DocumentView({
     <div
       ref={viewport}
       onScroll={remember}
-      className="print-flow relative min-h-0 flex-1 overflow-y-auto bg-paper [scrollbar-gutter:stable]"
+      onPointerDownCapture={() => !focused && actions.focus(path)}
+      data-pane-focused={focused || undefined}
+      className={cn(
+        'print-flow relative min-h-0 flex-1 overflow-y-auto bg-paper [scrollbar-gutter:stable]',
+        compact && '@container',
+      )}
     >
+      {finding && <FindBar article={article} viewport={viewport} version={current} />}
       <div
         className={cn(
           'mx-auto flex gap-12 px-10 pt-10 pb-32 max-[900px]:px-6',
@@ -357,7 +395,18 @@ export function DocumentView({
             />
           </div>
         </div>
-        {mode !== 'split' && <SidePanel path={path} viewport={viewport} article={article} version={current} editing={mode === 'edit'} />}
+        {mode !== 'split' && (
+          <SidePanel
+            path={path}
+            viewport={viewport}
+            article={article}
+            version={current}
+            editing={mode === 'edit'}
+            headings={outline.headings}
+            onHeading={scrollToHeading}
+            compact={compact}
+          />
+        )}
       </div>
       {current && <SelectionCommentButton path={path} article={article} />}
       {current &&

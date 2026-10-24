@@ -2,7 +2,7 @@ import { useState, type RefObject } from 'react'
 import { Bot, Check, CheckCheck, MessageSquarePlus } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { setState, useLeaf } from '@/lib/store'
+import { setState, useLeaf, type Heading } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { agentPrompt, CommentsRail, documentComments, startComment } from './CommentsRail'
 import { HistoryPanel } from './HistoryPanel'
@@ -18,12 +18,19 @@ export function SidePanel({
   article,
   version,
   editing = false,
+  headings,
+  onHeading,
+  compact = false,
 }: {
   path: string
   viewport: RefObject<HTMLDivElement | null>
   article: RefObject<HTMLElement | null>
   version: unknown
   editing?: boolean
+  headings: Heading[]
+  onHeading: (id: string) => boolean
+  /** Hide when this pane, rather than the window, is narrow. */
+  compact?: boolean
 }) {
   const open = useLeaf((s) => s.outlineOpen)
   const choice = useLeaf((s) => s.sidePanel)
@@ -59,7 +66,10 @@ export function SidePanel({
   )
 
   return (
-    <aside aria-label="Document side panel" className="print-hide w-72 shrink-0 max-[1000px]:hidden">
+    <aside
+      aria-label="Document side panel"
+      className={cn('print-hide w-72 shrink-0', compact ? '@max-[880px]:hidden' : 'max-[1000px]:hidden')}
+    >
       <div className="sticky top-0 z-20 -mx-2 flex flex-wrap items-center gap-1 bg-paper/95 px-2 pt-3 pb-3 backdrop-blur-sm">
         <ToggleGroup
           type="single"
@@ -114,7 +124,7 @@ export function SidePanel({
         )}
       </div>
       {mode === 'outline' ? (
-        <Outline viewport={viewport} />
+        <Outline viewport={viewport} headings={headings} onHeading={onHeading} />
       ) : mode === 'history' ? (
         <HistoryPanel path={path} />
       ) : editing ? (

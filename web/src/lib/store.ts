@@ -26,6 +26,8 @@ import {
   type TabGroup,
   type LiveCommand,
   type SavedTab,
+  type Split,
+  type SplitSide,
   type SyncResponse,
   type Theme,
   type Workspace,
@@ -58,6 +60,10 @@ export interface LeafState {
   draft: { path: string; anchor: CommentAnchor | null } | null
   sidebarOpen: boolean
   paletteOpen: boolean
+  /** Find in the focused pane: whether the bar is open, its text, and a counter that refocuses it. */
+  findOpen: boolean
+  findQuery: string
+  findFocus: number
   /** Path prompt: open a document, add a folder, or add a document to a collection. */
   openDialog: null | 'open-file' | 'open-folder' | { collection: string }
   /** Create a group from these tab paths, or edit an existing group. */
@@ -103,6 +109,9 @@ let state: LeafState = {
   activeComment: null,
   draft: null,
   paletteOpen: false,
+  findOpen: false,
+  findQuery: '',
+  findFocus: 0,
   openDialog: null,
   groupDialog: null,
   collectionDialog: null,
@@ -140,16 +149,27 @@ export function useLeaf<T>(selector: (s: LeafState) => T): T {
 
 /* ------------------------------------------------------------------ Reader hooks */
 
+const renderingPanes = new Set<string>()
+
 /**
- * The document view registers how to answer live commands and when rendering is in flight.
- * Sync waits while a render runs so a reported revision means the reader actually shows it.
+ * The focused document view registers how to answer live commands; every pane reports when
+ * rendering is in flight. Sync waits while any render runs so a reported revision means the
+ * reader actually shows it.
  */
 export const reader = {
-  rendering: false,
+  get rendering() {
+    return renderingPanes.size > 0
+  },
+  markRendering(pane: string, busy: boolean) {
+    if (busy) renderingPanes.add(pane)
+    else renderingPanes.delete(pane)
+  },
   scrollTop: () => 0,
   scrollToHeading: (_target: string): boolean => false,
   rememberActiveScroll: () => {},
   applyScroll: (_path: string, _top: number) => {},
+  /** Heading lookups for every pane, so a live heading command also finds the other pane's document. */
+  headingFinders: new Map<string, (target: string) => boolean>(),
 }
 
 /* ------------------------------------------------------------------ Sync protocol */
@@ -187,6 +207,14 @@ export function snapshot() {
     title: document.title,
     rootPath: null,
     active: ws?.active ?? null,
+    split: ws ? currentSplit(ws) : null,
+    // Agents' commands keep these on screen (paths only; drafts never leave the browser).
+    editing: [
+      ...new Set([
+        ...Object.keys(state.editModes),
+        ...Object.entries(state.drafts).filter(([, draft]) => draft.text !== draft.base).map(([path]) => path),
+      ]),
+    ],
     tabs: ws?.tabs.map((tab) => tab.path) ?? [],
     source: ws?.source ?? false,
     theme: ws?.theme ?? 'light',
@@ -228,7 +256,9 @@ function hydrate(payload: Hydration) {
 
 async function runLiveCommand(command: LiveCommand) {
   if (command.action === 'heading') {
-    if (!command.path || !reader.scrollToHeading(command.path))
+    const found = (target: string) =>
+      reader.scrollToHeading(target) || [...reader.headingFinders.values()].some((find) => find(target))
+    if (!command.path || !found(command.path))
       throw new Error('Heading not found. Use state to inspect headings.')
   } else if (command.action !== 'state') {
     throw new Error('Unknown live command: ' + command.action)
@@ -327,6 +357,12 @@ type Optimistic = (ws: Workspace) => Workspace
  */
 export async function act(action: Record<string, unknown>, optimistic?: Optimistic, quiet = false): Promise<string | null> {
   const before = state.workspace
+  // These add tabs or folders whose file grants only arrive with a full hydration.
+  const grants = ['open-file', 'open-folder', 'refresh', 'group-open', 'collection-open', 'collection-add', 'collection-create']
+  const opens =
+    grants.includes(String(action.action)) ||
+    (action.action === 'split' && !!action.path && !before?.tabs.some((tab) => tab.path === action.path)) ||
+    (action.action === 'pin' && !state.entries.has(String(action.path)))
   if (optimistic && before) setState({ workspace: optimistic(before) })
   try {
     await exclusive(async () => {
@@ -345,9 +381,7 @@ export async function act(action: Record<string, unknown>, optimistic?: Optimist
         }
       }
       const response = await sendAction(action)
-      // These add tabs or folders whose file grants only arrive with a full hydration.
-      const grants = ['open-file', 'open-folder', 'refresh', 'group-open', 'collection-open', 'collection-add', 'collection-create']
-      if (grants.includes(String(action.action))) forceHydrate = true
+      if (opens) forceHydrate = true
       else {
         revision = response.revision
         setState({ workspace: response.workspace })
@@ -399,7 +433,10 @@ export const actions = {
     return act({ action: 'close-tab', path }, (ws) => {
       const index = ws.tabs.findIndex((tab) => tab.path === path)
       const tabs = ws.tabs.filter((tab) => tab.path !== path)
-      const active = ws.active === path ? (tabs[Math.min(index, tabs.length - 1)]?.path ?? null) : ws.active
+      const split = currentSplit(ws)
+      // In a split, the remaining pane takes over the reader.
+      const next = split ? split.panes[1 - split.focus] : (tabs[Math.min(index, tabs.length - 1)]?.path ?? null)
+      const active = ws.active === path ? next : ws.active
       return { ...ws, tabs, active }
     })
   },
@@ -437,6 +474,26 @@ export const actions = {
       tabs.splice(index, 0, group === undefined ? tab : { ...tab, group })
       return { ...ws, tabs }
     }),
+  /** Show `path` on `side` of the active document (or of the most recent other tab, when it is the active one). */
+  split: (path: string, side: SplitSide) => {
+    reader.rememberActiveScroll()
+    const ws = state.workspace
+    const open = !!ws?.tabs.some((tab) => tab.path === path)
+    return act({ action: 'split', path, side }, open ? (w) => splitBeside(w, path, side) : undefined)
+  },
+  splitResize: (ratio: number) =>
+    act({ action: 'split-resize', ratio }, (ws) => (ws.split ? { ...ws, split: { ...ws.split, ratio } } : ws)),
+  /** Back to one pane showing `path` (by default the focused document). */
+  unsplit: (path?: string) =>
+    act({ action: 'unsplit', ...(path ? { path } : {}) }, (ws) => ({ ...ws, active: path ?? ws.active, split: null })),
+  /** Pin a document, or move an existing pin to `index`. */
+  pin: (path: string, index?: number) =>
+    act({ action: 'pin', path, ...(index === undefined ? {} : { index }) }, (ws) => {
+      const pins = (ws.pins ?? []).filter((p) => p !== path)
+      pins.splice(index ?? (ws.pins?.includes(path) ? ws.pins.indexOf(path) : pins.length), 0, path)
+      return { ...ws, pins }
+    }),
+  unpin: (path: string) => act({ action: 'unpin', path }, (ws) => ({ ...ws, pins: (ws.pins ?? []).filter((p) => p !== path) })),
   readerPrefs: (patch: Partial<ReaderPrefs>) =>
     act({ action: 'reader', ...patch }, (ws) => ({ ...ws, reader: { ...DEFAULT_READER, ...ws.reader, ...patch } })),
 
@@ -494,6 +551,41 @@ export const actions = {
 export const AUTHOR = 'you'
 
 export const DEFAULT_READER: ReaderPrefs = { fontSize: 16, width: 'normal', font: 'sans' }
+
+const SPLIT_SIDES: Record<SplitSide, ['columns' | 'rows', 0 | 1]> = {
+  left: ['columns', 0],
+  right: ['columns', 1],
+  up: ['rows', 0],
+  down: ['rows', 1],
+}
+
+/**
+ * The split as the reader shows it, mirroring the server's rule so optimistic tab changes
+ * render at once: the focused pane follows the active tab, and a closed pane ends the split.
+ */
+export function currentSplit(ws: Workspace): Split | null {
+  const split = ws.split
+  if (!split || !ws.active) return null
+  const panes = [...split.panes] as [string, string]
+  let focus = split.focus
+  if (ws.active === panes[1 - focus]) focus = (1 - focus) as 0 | 1
+  panes[focus] = ws.active
+  const open = new Set(ws.tabs.map((tab) => tab.path))
+  if (panes[0] === panes[1] || !panes.every((pane) => open.has(pane))) return null
+  return { ...split, panes, focus }
+}
+
+function splitBeside(ws: Workspace, target: string, side: SplitSide): Workspace {
+  const open = new Set(ws.tabs.map((tab) => tab.path))
+  const beside =
+    ws.active !== target
+      ? ws.active
+      : [...ws.recentFiles, ...open].find((path) => open.has(path) && path !== target) ?? null
+  if (!beside) return ws
+  const [layout, index] = SPLIT_SIDES[side]
+  const panes: [string, string] = index ? [beside, target] : [target, beside]
+  return { ...ws, active: target, split: { panes, focus: index, layout, ratio: ws.split?.ratio ?? 0.5 } }
+}
 
 /** Cycle through tabs relative to the active one. */
 export function stepTab(delta: number) {

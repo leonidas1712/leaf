@@ -37,6 +37,14 @@ Use `leaf heading HEADING --session ID --json` when targeting one live reader.
 Do not expose the private connection token or commit runtime state, document contents, or screenshots.
 Explicit editing commands can modify known local documents. Collection and tab actions never move or delete source files.
 
+Use `leaf split PATH --side right --json` to show a document beside the active one. Sides are left, right, up, and down.
+The focused pane shows `active`. Heading and scroll commands act on it. Closing either pane's tab ends the split. Use `leaf unsplit --json` to return to one pane.
+Your commands never hide a document the user is editing. Leaf shows yours in the other pane, and `active` stays theirs.
+Use `open --background` to add a tab without showing it. Use `--replace` only when the user asks you to take over their view.
+
+Pins are the user's short list of documents in the sidebar. `leaf pins --json` lists them in order.
+`leaf pin PATH --json` pins a document without opening it; `--index N` places or moves it. `leaf unpin PATH --json` removes it.
+
 Groups require unique names. Closing saves member tabs; removing a group closes tabs without deleting documents.
 Read API.md in the source checkout before changing synchronization or group behavior.
 

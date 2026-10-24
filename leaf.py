@@ -146,6 +146,10 @@ def make_parser():
         'comments': 'Read document comments and their timelines', 'comment': 'Add, reply to, or resolve a comment',
         'collection': 'Manage nested virtual document collections', 'help': 'Show help for a command', 'group': 'Manage project tab groups',
         'reader': 'Show or change reader typography', 'move-tab': 'Move a tab to an index and optional group',
+        'split': 'Show a document beside the active one (defaults to the active tab)',
+        'unsplit': 'Return to one reading pane, keeping a shown document (defaults to active)',
+        'pins': 'List pinned documents', 'pin': 'Pin a document to the sidebar, or move a pin with --index',
+        'unpin': 'Remove a document from the pinned list',
     }
     for name, description in descriptions.items():
         child = commands.add_parser(name, help=description, description=description)
@@ -155,7 +159,9 @@ def make_parser():
             child.add_argument('paths', nargs='+', metavar='PATH')
         elif name in ('close', 'close-tab', 'search', 'help'):
             child.add_argument('paths', nargs='?', default=None, metavar='VALUE')
-        elif name in ('reveal', 'open-file', 'open-folder', 'focus', 'focus-tab', 'remove-folder', 'expand-folder', 'collapse-folder', 'heading'):
+        elif name in ('split', 'unsplit'):
+            child.add_argument('paths', nargs='?', default=None, metavar='PATH')
+        elif name in ('reveal', 'open-file', 'open-folder', 'focus', 'focus-tab', 'remove-folder', 'expand-folder', 'collapse-folder', 'heading', 'pin', 'unpin'):
             child.add_argument('paths', metavar='PATH')
         elif name in ('theme', 'view'):
             child.add_argument('paths', choices=('light', 'dark', 'system') if name == 'theme' else ('source', 'formatted'))
@@ -168,6 +174,17 @@ def make_parser():
         elif name == 'prefs':
             child.add_argument('key', nargs='?', choices=['theme'])
             child.add_argument('value', nargs='?', choices=['light', 'dark', 'system'])
+        if name == 'split':
+            child.add_argument('--side', choices=['right', 'left', 'down', 'up'], help='Where the document goes (default right)')
+            child.add_argument('--beside', metavar='PATH', help='Open tab for the other pane (default active, else most recent)')
+            child.add_argument('--ratio', type=float, help="First pane's share, 0.2–0.8; alone, it resizes the current split")
+        if name == 'pin':
+            child.add_argument('--index', type=int, help='Position in the pinned list, from 0 (default: the end, or where it is)')
+        if name in ('open', 'open-file'):
+            child.add_argument('--background', action='store_true', default=None, help='Open as a tab without showing it')
+        if name in ('open', 'open-file', 'focus', 'focus-tab', 'split'):
+            child.add_argument('--replace', action='store_true', default=None,
+                               help="Show it even in place of the document the user is editing")
         if name in ('open', 'open-file', 'move-tab'):
             child.add_argument('--group', help='Exact existing group name or ID; use none to ungroup')
         if name == 'move-tab':
@@ -281,7 +298,7 @@ def main():
         return
     args.paths = [args.paths] if isinstance(args.paths, str) else (args.paths or [])
     extra = {}
-    for key in ('width', 'top', 'by', 'fontSize', 'font', 'index', 'group', 'name', 'color', 'collapsed', 'collection', 'parent', 'recursive'):
+    for key in ('width', 'top', 'by', 'fontSize', 'font', 'index', 'group', 'name', 'color', 'collapsed', 'collection', 'parent', 'recursive', 'side', 'beside', 'ratio', 'background', 'replace'):
         if getattr(args, key, None) is not None:
             extra[key] = getattr(args, key)
     if extra.get('group') == 'none':
@@ -328,6 +345,11 @@ def main():
         return
     if args.action == 'reorder-tabs':
         extra['paths'] = args.paths
+    if args.action == 'split':
+        if 'beside' in extra:
+            extra['beside'] = str(Path(extra['beside']).expanduser().resolve())
+        if set(extra) == {'ratio'} and not args.paths:
+            args.action = 'split-resize'
     if args.action == 'prefs':
         if args.value and not args.key:
             parser.error('Provide a preference name before its value.')
@@ -353,7 +375,7 @@ def main():
         if action == 'ui' and not args.no_browser:
             open_browser(info['url'])
         result = {'status': 'running', 'url': info['url'], 'stateDirectory': str(RUNTIME)}
-    elif action in ('status', 'state', 'tabs', 'folders', 'recent'):
+    elif action in ('status', 'state', 'tabs', 'folders', 'recent', 'pins'):
         info = running()
         if info:
             workspace = info['workspace']
@@ -361,9 +383,11 @@ def main():
             from workspace import Workspace
             workspace = Workspace(RUNTIME / 'workspace.json').data
         if action == 'tabs':
-            result = {'active': workspace['active'], 'tabs': workspace['tabs']}
+            result = {'active': workspace['active'], 'tabs': workspace['tabs'], 'split': workspace.get('split')}
         elif action == 'folders':
             result = workspace['folders']
+        elif action == 'pins':
+            result = workspace.get('pins', [])
         elif action == 'recent':
             result = {'files': workspace['recentFiles'], 'folders': workspace['recentFolders']}
         elif action == 'state':
@@ -431,14 +455,15 @@ def main():
             command = dict(extra, action={'close': 'close-tab', 'focus': 'focus-tab'}.get(action, action))
             if args.paths:
                 path = args.paths[0]
-                if command['action'] in ('open-file', 'open-folder', 'focus-tab', 'close-tab', 'remove-folder', 'move-tab') or (command['action'] in ('expand-folder', 'collapse-folder') and path != '*'):
+                if command['action'] in ('open-file', 'open-folder', 'focus-tab', 'close-tab', 'remove-folder', 'move-tab', 'split', 'unsplit', 'pin', 'unpin') or (command['action'] in ('expand-folder', 'collapse-folder') and path != '*'):
                     path = str(Path(path).expanduser().resolve())
                 command['path'] = path
             if command['action'] == 'reorder-tabs' and 'paths' in command:
                 command['paths'] = [str(Path(p).expanduser().resolve()) for p in command['paths']]
             commands = [command]
         for command in commands:
-            saved = request('/api/action', command, timeout=30)
+            # Marks the request as an agent's, so it keeps the user's editing pane on screen.
+            saved = request('/api/action', dict(command, origin='agent'), timeout=30)
         if action in ('open', 'open-file', 'open-folder') and not args.no_browser and not request('/api/status')['readers']:
             open_browser(info['url'])
             time.sleep(.5)
@@ -447,6 +472,8 @@ def main():
         result['groups'] = saved['workspace']['groups']
         result['reader'] = saved['workspace']['reader']
         result['active'] = saved['workspace']['active']
+        result['split'] = saved['workspace']['split']
+        result['pins'] = saved['workspace']['pins']
         result['tabs'] = [tab['path'] for tab in saved['workspace']['tabs']]
     output(result, args.json)
 

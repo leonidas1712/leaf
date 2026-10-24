@@ -18,8 +18,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
 import { closeEditor, isDirty, openEditor } from '@/lib/drafts'
-import { actions, setState, useLeaf } from '@/lib/store'
+import { actions, currentSplit, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { PinMenuItem } from './pins'
 import { GroupMenuItems, groupStyle } from './groups'
 import { ReaderSettings } from './ReaderSettings'
 import { acceptDrop, carriesPath, draggedFromTab, draggedPath, startDrag } from '@/lib/dnd'
@@ -33,6 +34,7 @@ export function TabStrip() {
   const drafts = useLeaf((s) => s.drafts)
   const tabs = workspace?.tabs ?? []
   const active = workspace?.active ?? null
+  const split = workspace ? currentSplit(workspace) : null
   const readOnly = !!(active && workspace?.sources?.[active])
   const labels = useMemo(() => tabLabels(tabs.map((tab) => tab.path)), [tabs])
   const strip = useRef<HTMLDivElement>(null)
@@ -126,6 +128,8 @@ export function TabStrip() {
       >
         {tabs.map((tab, index) => {
           const selected = tab.path === active
+          // The document in the split's other pane: shown, but not where tabs and shortcuts act.
+          const beside = !selected && !!split?.panes.includes(tab.path)
           const missing = entries.get(tab.path)?.error
           const previousSelected = tabs[index - 1]?.path === active
           const group = groupOf(tab.group)
@@ -193,11 +197,15 @@ export function TabStrip() {
                       onAuxClick={(event) => event.button === 1 && actions.close(tab.path)}
                       className={cn(
                         'group/tab relative flex h-[34px] max-w-56 min-w-28 shrink-0 items-center rounded-t-[9px] transition-colors duration-150',
-                        selected ? 'z-10 bg-paper text-ink' : 'text-ink-muted hover:bg-accent/70 hover:text-ink',
+                        selected
+                          ? 'z-10 bg-paper text-ink'
+                          : beside
+                            ? 'bg-paper/55 text-ink hover:bg-paper/80'
+                            : 'text-ink-muted hover:bg-accent/70 hover:text-ink',
                         dragging === tab.path && 'opacity-40',
                         dropTarget === tab.path && dragging !== tab.path && 'ring-1 ring-leaf/50 ring-inset',
                         // Hairline separators between resting tabs, hidden next to the selected one.
-                        !selected && index > 0 && !previousSelected && !startsGroup &&
+                        !selected && !beside && index > 0 && !previousSelected && !startsGroup &&
                           'before:absolute before:top-2 before:bottom-2 before:left-0 before:w-px before:bg-rule-strong',
                         // Group membership: a coloured rule under resting tabs, over the selected one.
                         group &&
@@ -209,11 +217,11 @@ export function TabStrip() {
                       <button
                         role="tab"
                         aria-selected={selected}
-                        title={displayPath(tab.path) + (group ? ` · ${group.name}` : '')}
+                        title={displayPath(tab.path) + (group ? ` · ${group.name}` : '') + (beside ? ' · in the other pane' : '')}
                         onClick={() => actions.focus(tab.path)}
                         className="flex h-full min-w-0 flex-1 items-center gap-2 pr-1 pl-3 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-leaf/60 focus-visible:ring-inset"
                       >
-                        <FileText className={cn('size-3.5 shrink-0', selected ? 'text-leaf' : 'text-ink-faint', missing && 'text-destructive')} />
+                        <FileText className={cn('size-3.5 shrink-0', selected || beside ? 'text-leaf' : 'text-ink-faint', missing && 'text-destructive')} />
                         <span className={cn('truncate', missing && 'line-through decoration-ink-faint')}>{labels.get(tab.path)}</span>
                         {isDirty(drafts[tab.path]) && (
                           <span title="Unsaved changes" className="size-2 shrink-0 rounded-full bg-[var(--g-yellow)]" />
@@ -240,8 +248,18 @@ export function TabStrip() {
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-56">
+                    <PinMenuItem path={tab.path} />
                     <ContextMenuItem onSelect={() => actions.reveal(tab.path)}>{REVEAL_LABEL}</ContextMenuItem>
                     <ContextMenuItem onSelect={() => navigator.clipboard.writeText(tab.path)}>Copy path</ContextMenuItem>
+                    <ContextMenuSeparator />
+                    {(['right', 'left', 'down', 'up'] as const).map((side) => (
+                      <ContextMenuItem key={side} disabled={tabs.length < 2} onSelect={() => actions.split(tab.path, side)}>
+                        Split {side}
+                      </ContextMenuItem>
+                    ))}
+                    {split?.panes.includes(tab.path) && (
+                      <ContextMenuItem onSelect={() => actions.unsplit(tab.path)}>Close split, keep this</ContextMenuItem>
+                    )}
                     <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => setState({ groupDialog: { paths: [tab.path] } })}>Add to new group…</ContextMenuItem>
                     {groups.some((g) => !g.closed && g.id !== tab.group) && (

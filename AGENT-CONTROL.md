@@ -209,6 +209,50 @@ Reveal opens the system file manager for a path Leaf already knows. It does not 
 macOS selects the target in Finder. Linux opens the folder or the parent of a file.
 Missing or unknown paths return an error. Open a document or add its folder before revealing it.
 
+## Split the reader
+
+```sh
+leaf split /path/notes.md --side right --json
+leaf split /path/notes.md --side down --beside /path/plan.md --json
+leaf split --side left --json
+leaf split --ratio 0.6 --json
+leaf unsplit --json
+leaf unsplit /path/plan.md --json
+```
+
+A split shows two open documents side by side (`left`/`right`) or stacked (`up`/`down`). Sides default to `right`.
+`split PATH` opens PATH if needed, places it on that side, and focuses it. The other pane shows `--beside`, or else the active tab.
+If PATH is already the active tab, the other pane shows the most recently used other tab. Without PATH, the active tab moves to that side.
+The focused pane always shows `active`. Focusing the other pane's document moves focus to that pane.
+Focusing or opening any other document replaces the focused pane's document. Heading and scroll commands act on the focused pane.
+Closing either pane's tab ends the split. `--ratio` sets the first pane's share from 0.2 to 0.8. A ratio alone resizes the current split.
+`unsplit` keeps the focused document, or the named document from the split. Tabs stay open.
+`leaf heading` searches the focused pane first and then the other pane. `leaf scroll` acts on the focused pane.
+
+### The user's editing pane
+
+Agent commands never take a document that the user is editing off the screen. This includes a document with unsaved changes.
+Opening, focusing, or splitting another document puts it in the other pane, and splits the reader when needed.
+The user's pane stays where it is and keeps focus, so `active` stays the user's document. Read `split` to find yours.
+An agent `unsplit` keeps the user's document. `open --background` adds a tab without showing it.
+`--replace` on `open`, `focus`, or `split` deliberately takes over the user's pane. Use it only when the user asked for it.
+Unsaved edits stay in the browser when a document leaves the screen.
+`leaf tabs --json` and `leaf state --json` report the split as `{panes, focus, layout, ratio}`. The value is `null` when there is no split.
+
+## Pin documents
+
+```sh
+leaf pins --json
+leaf pin /path/plan.md --json
+leaf pin /path/plan.md --index 0 --json
+leaf unpin /path/plan.md --json
+```
+
+Pins are a short, ordered list of documents at the top of the sidebar, above collections. The user returns to them in one click.
+`pin` takes a supported text document and never opens a tab. Pinning an existing pin with `--index` moves it; without it, nothing changes.
+`unpin` removes only the pin. Pins survive closing tabs and restarting Leaf. The result's `pins` field shows the new order.
+Pin what the user asks you to, or what they will clearly keep returning to. Ask before unpinning documents the user pinned.
+
 ## Human editing controls
 
 Press `e` or select **Edit** to edit a local document. Select **Split** for a live Markdown preview.

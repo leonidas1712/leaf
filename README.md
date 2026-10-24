@@ -60,6 +60,7 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 - Chrome-style tab groups with colours, collapse, close, and reopen
 - Drag documents between folders, collections, groups, and tabs
 - ⌘K palette for documents, tabs, collections, and commands
+- ⌘F find in the document, with every match highlighted
 - Path entry that completes from disk, so big repositories stay usable
 - One saved workspace shared by every browser window
 
@@ -107,18 +108,38 @@ Every command accepts `--json`. Results distinguish **saved** (written to the wo
 connected browser has rendered it), so an agent can tell when you can actually see the change. Run `leaf guide` for
 the full agent instructions and see [AGENT-CONTROL.md](AGENT-CONTROL.md) and [API.md](API.md) for the contracts.
 
+## Side-by-side reading
+
+Right-click a tab and choose **Split right**, **left**, **down**, or **up** to show it beside the current document.
+Read one document while you edit another: each pane keeps its own mode, outline, and scroll position.
+The pane with the green bar has focus. Tabs, shortcuts, and agent commands act on it. Click the other pane to focus it.
+When an agent opens a document while you edit, Leaf shows it in the other pane. It splits when needed, and your editor and focus stay where they are.
+Drag the divider to resize it, or double-click it to make both panes equal. Press <kbd>|</kbd>, click the × on the divider, or choose **Close split, keep this** on either tab to return to one pane.
+Without a split, <kbd>|</kbd> opens your previous document to the right.
+
+```sh
+leaf split ~/projects/atlas/notes.md --side right   # notes beside the active document
+leaf split --ratio 0.6                              # resize the current split
+leaf unsplit                                        # back to one pane, keeping the focused document
+```
+
 ## Organising documents
 
 | | What it is | Use it for |
 | --- | --- | --- |
+| **Pinned** | A short, ordered list of documents at the top of the sidebar | Documents you keep coming back to |
 | **Folders** | Real directories on disk, mirrored read-only | Browsing a project you want in full |
 | **Collections** | Leaf-only, nestable lists of links to documents anywhere | A logical project that spans repos, folders, and boards |
 | **Groups** | Sets of open tabs, like Chrome tab groups | The documents you are working with right now |
+
+Pin a document from its tab or sidebar menu, by pressing <kbd>p</kbd>, or by dragging it onto **Pinned**. Drag pins to
+reorder them. A pin stays after you close its tab.
 
 Hover a collection and choose **Open** to open its documents as a group. Drag a document onto a collection or group
 to add it. Deleting a collection or group never touches the files.
 
 ```sh
+leaf pin ~/projects/atlas/plan.md             # pin a document; --index N puts it at a position
 leaf collection new Plans --parent Atlas
 leaf collection open Atlas                    # open Atlas and its sub-collections as a tab group
 leaf group close Review                       # put a group's tabs away
@@ -134,7 +155,8 @@ leaf group open Review                        # restore them, positions included
 | <kbd>⌘</kbd> <kbd>.</kbd> | Toggle outline | <kbd>x</kbd> | Close tab |
 | <kbd>/</kbd> | Filter the sidebar | <kbd>s</kbd> | Toggle Markdown source |
 | <kbd>o</kbd> | Open a document by path | <kbd>t</kbd> | Toggle light and dark |
-| <kbd>c</kbd> or <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>M</kbd> | Comment on the selection | | |
+| <kbd>c</kbd> or <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>M</kbd> | Comment on the selection | <kbd>p</kbd> | Pin or unpin the document |
+| <kbd>⌘</kbd> <kbd>F</kbd> | Find in the document | <kbd>\|</kbd> | Split with the previous document, or close the split |
 
 ## Aboard artifacts
 

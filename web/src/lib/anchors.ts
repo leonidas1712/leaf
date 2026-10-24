@@ -7,6 +7,11 @@
  */
 import type { CommentAnchor } from './api'
 
+/** The focused reading pane's rendered document: where comment shortcuts and selections apply. */
+export function focusedArticle() {
+  return document.querySelector<HTMLElement>('[data-pane-focused] article.prose-leaf')
+}
+
 const SKIP = '.heading-anchor, .code-bar, .diagram, button, script, style'
 const CONTEXT = 32
 

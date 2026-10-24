@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, Code2, Copy, FileText, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { BookOpen, Code2, Columns2, Copy, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
 import { REVEAL_LABEL } from '@/lib/api'
 import { trail } from '@/lib/collections'
+import { openFind } from './FindBar'
+import { togglePin } from './pins'
 import { groupStyle } from './groups'
 import {
   CommandDialog,
@@ -13,7 +15,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, getState, setState, TEXT_FILE, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, setState, TEXT_FILE, useLeaf } from '@/lib/store'
 
 /**
  * Rank a path for a query: file-name substring beats path substring beats a subsequence of
@@ -71,6 +73,8 @@ export function CommandPalette() {
     work()
   }
 
+  const split = currentSplit(workspace)
+  const previous = [...workspace.recentFiles, ...openPaths].find((path) => openPaths.has(path) && path !== workspace.active)
   const commands = [
     { label: 'Open document…', icon: FilePlus, shortcut: 'O', run: () => setState({ openDialog: 'open-file' }) },
     { label: 'Add folder…', icon: FolderPlus, run: () => setState({ openDialog: 'open-folder' }) },
@@ -88,11 +92,23 @@ export function CommandPalette() {
     { label: sidebarOpen ? 'Hide sidebar' : 'Show sidebar', icon: PanelLeft, shortcut: '⌘\\', run: () => setState({ sidebarOpen: !getState().sidebarOpen }) },
     ...(workspace.active
       ? [
+          { label: 'Find in document…', icon: Search, shortcut: '⌘F', run: () => requestAnimationFrame(openFind) },
+          workspace.pins?.includes(workspace.active)
+            ? { label: 'Unpin current document', icon: PinOff, shortcut: 'P', run: () => togglePin(workspace) }
+            : { label: 'Pin current document', icon: Pin, shortcut: 'P', run: () => togglePin(workspace) },
           { label: 'Copy path of current document', icon: Copy, run: () => navigator.clipboard.writeText(workspace.active!) },
           { label: `${REVEAL_LABEL}: current document`, icon: FolderSearch, run: () => actions.reveal(workspace.active!) },
           { label: 'Close current tab', icon: X, shortcut: 'X', run: () => actions.close(workspace.active!) },
         ]
       : []),
+    ...(split
+      ? [
+          { label: 'Focus other pane', icon: Columns2, run: () => actions.focus(split.panes[1 - split.focus]) },
+          { label: 'Close split', icon: Columns2, shortcut: '|', run: () => actions.unsplit() },
+        ]
+      : workspace.active && previous
+        ? [{ label: `Split right: ${basename(previous)}`, icon: Columns2, shortcut: '|', run: () => actions.split(previous, 'right') }]
+        : []),
     { label: 'New collection…', icon: Library, run: () => setState({ collectionDialog: { parent: null } }) },
     { label: 'Reload folders and documents', icon: RefreshCw, run: () => actions.refresh() },
   ].filter((command) => !needle || command.label.toLowerCase().includes(needle))

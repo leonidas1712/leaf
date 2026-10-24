@@ -105,6 +105,20 @@ export interface Workspace {
   comments?: Comment[]
   sources?: Record<string, DocumentSource>
   reader?: ReaderPrefs
+  /** Two documents side by side (columns) or stacked (rows); the focused pane shows `active`. */
+  split?: Split | null
+  /** Pinned documents, in order; independent of open tabs. */
+  pins?: string[]
+}
+
+export type SplitSide = 'left' | 'right' | 'up' | 'down'
+
+export interface Split {
+  panes: [string, string]
+  focus: 0 | 1
+  layout: 'columns' | 'rows'
+  /** The first pane's share of the space, 0.2–0.8. */
+  ratio: number
 }
 
 export interface Entry {

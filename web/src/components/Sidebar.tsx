@@ -28,6 +28,7 @@ import { actions, setState, TEXT_FILE, toggleExpanded, useLeaf } from '@/lib/sto
 import { buildTree, type TreeNode } from '@/lib/tree'
 import { cn } from '@/lib/utils'
 import { CollectionsSection } from './collections'
+import { PinMenuItem, PinsSection } from './pins'
 import { GroupMenuItems, groupStyle } from './groups'
 import { LeafMark } from './LeafMark'
 import { acceptDrop, carriesPath, draggedPath, startDrag } from '@/lib/dnd'
@@ -130,6 +131,8 @@ const Row = memo(function Row({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onSelect={() => actions.open(node.path)}>Open</ContextMenuItem>
+          <ContextMenuItem onSelect={() => actions.split(node.path, 'right')}>Open to the right</ContextMenuItem>
+          <PinMenuItem path={node.path} />
           <ContextMenuItem onSelect={() => actions.reveal(node.path)}>{REVEAL_LABEL}</ContextMenuItem>
           <ContextMenuItem onSelect={() => navigator.clipboard.writeText(node.path)}>Copy path</ContextMenuItem>
         </ContextMenuContent>
@@ -318,6 +321,7 @@ export function Sidebar() {
       </div>
 
       <nav aria-label="Library" className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        <PinsSection workspace={workspace} query={search} />
         {!search && <CollectionsSection workspace={workspace} />}
         {!search && (
           <Section
@@ -386,6 +390,7 @@ export function Sidebar() {
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem onSelect={() => actions.open(path)}>Open</ContextMenuItem>
+                    <PinMenuItem path={path} />
                     <ContextMenuItem onSelect={() => actions.reveal(path)}>{REVEAL_LABEL}</ContextMenuItem>
                     <ContextMenuItem onSelect={() => navigator.clipboard.writeText(path)}>Copy path</ContextMenuItem>
                   </ContextMenuContent>

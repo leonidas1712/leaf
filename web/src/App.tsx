@@ -4,18 +4,23 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { CollectionDialog } from '@/components/collections'
 import { CommandPalette } from '@/components/CommandPalette'
 import { startComment } from '@/components/CommentsRail'
+import { focusedArticle } from '@/lib/anchors'
+import { closeFind, findControls, openFind } from '@/components/FindBar'
 import { DiffDialog } from '@/components/DiffDialog'
 import { closeEditor, isDirty, openEditor, saveDraft } from '@/lib/drafts'
-import { DocumentView } from '@/components/DocumentView'
+import { openSearchPanel } from '@codemirror/search'
+import { EditorView } from '@codemirror/view'
 import { EmptyState } from '@/components/EmptyState'
 import { GroupDialog } from '@/components/groups'
 import { LeafMark } from '@/components/LeafMark'
 import { OpenDialog } from '@/components/OpenDialog'
+import { togglePin } from '@/components/pins'
+import { Panes } from '@/components/Panes'
 import { Sidebar } from '@/components/Sidebar'
 import { TabStrip } from '@/components/TabStrip'
 import type { Theme } from '@/lib/api'
 import { basename } from '@/lib/paths'
-import { actions, DEFAULT_READER, getState, setState, startSync, stepTab, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, setState, startSync, stepTab, useLeaf } from '@/lib/store'
 
 function typing(target: EventTarget | null) {
   const element = target as HTMLElement | null
@@ -44,7 +49,7 @@ function onKey(event: KeyboardEvent) {
   // ⌘⌥M, as in Google Docs: comment on the selection (works while text is selected).
   if (mod && event.altKey && event.code === 'KeyM' && workspace?.active) {
     event.preventDefault()
-    startComment(workspace.active, document.querySelector<HTMLElement>('article.prose-leaf'))
+    startComment(workspace.active, focusedArticle())
     return
   }
   // ⌘S saves the active document's edits from anywhere; inside the editor CodeMirror already did.
@@ -53,7 +58,25 @@ function onKey(event: KeyboardEvent) {
     event.preventDefault()
     return
   }
+  // ⌘F finds in the focused pane: in the editor when it shows one, otherwise in the document.
+  if (mod && !event.altKey && event.key.toLowerCase() === 'f' && workspace?.active && !event.defaultPrevented) {
+    event.preventDefault()
+    const editor = document.querySelector<HTMLElement>('[data-pane-focused] .cm-editor')
+    const view = editor && getState().editModes[workspace.active] === 'edit' ? EditorView.findFromDOM(editor) : null
+    if (view) openSearchPanel(view)
+    else openFind()
+    return
+  }
+  if (mod && event.key.toLowerCase() === 'g' && getState().findOpen && findControls.step) {
+    event.preventDefault()
+    findControls.step(event.shiftKey ? -1 : 1)
+    return
+  }
   const { openDialog, groupDialog, collectionDialog } = getState()
+  if (event.key === 'Escape' && getState().findOpen && !typing(event.target) && !paletteOpen && !openDialog) {
+    closeFind()
+    return
+  }
   if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || !workspace) return
   const key = event.key
   const active = workspace.active
@@ -62,13 +85,21 @@ function onKey(event: KeyboardEvent) {
       setState({ sidebarOpen: true })
       requestAnimationFrame(() => document.getElementById('sidebar-filter')?.focus())
     },
+    // | splits the current document with the previous one, or closes the split.
+    '|': () => {
+      if (currentSplit(workspace)) return actions.unsplit()
+      const open = new Set(workspace.tabs.map((tab) => tab.path))
+      const previous = [...workspace.recentFiles, ...open].find((path) => open.has(path) && path !== active)
+      if (active && previous) actions.split(previous, 'right')
+    },
     '[': () => stepTab(-1),
     ']': () => stepTab(1),
     x: active ? () => actions.close(active) : undefined,
     s: active ? () => actions.view(!workspace.source) : undefined,
     t: () => actions.theme(resolveTheme(workspace.theme) === 'dark' ? 'light' : 'dark'),
     o: () => setState({ openDialog: 'open-file' }),
-    c: active ? () => startComment(active, document.querySelector<HTMLElement>('article.prose-leaf')) : undefined,
+    c: active ? () => startComment(active, focusedArticle()) : undefined,
+    p: active ? () => togglePin(workspace) : undefined,
     e: active
       ? () => (getState().editModes[active] ? closeEditor(active) : openEditor(active, 'edit'))
       : undefined,
@@ -90,9 +121,7 @@ function resolveTheme(theme: Theme): 'light' | 'dark' {
 export default function App() {
   const connection = useLeaf((s) => s.connection)
   const workspace = useLeaf((s) => s.workspace)
-  const entries = useLeaf((s) => s.entries)
   const sidebarOpen = useLeaf((s) => s.sidebarOpen)
-  const stamps = useLeaf((s) => s.stamps)
   const systemDark = useSyncExternalStore(
     (listener) => {
       darkQuery.addEventListener('change', listener)
@@ -148,15 +177,7 @@ export default function App() {
           {!workspace ? (
             <div className="flex-1 bg-paper" />
           ) : active ? (
-            <DocumentView
-              path={active}
-              entry={entries.get(active)}
-              source={workspace.source}
-              theme={theme}
-              entries={entries}
-              stamp={stamps[active]}
-              prefs={workspace.reader ?? DEFAULT_READER}
-            />
+            <Panes theme={theme} />
           ) : (
             <EmptyState />
           )}

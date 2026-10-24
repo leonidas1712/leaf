@@ -128,6 +128,7 @@ def hydrate_workspace():
             missing.append({'path': folder, 'error': str(error)})
     paths = WORKSPACE.data['files'] + [tab['path'] for tab in WORKSPACE.data['tabs']]
     paths += [path for collection in WORKSPACE.data['collections'] for path in collection['docs']]
+    paths += WORKSPACE.data['pins']
     for path in paths:
         if path in entries:
             continue
@@ -291,7 +292,9 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({'status': 'saved', 'revision': WORKSPACE.data['revision'], 'workspace': WORKSPACE.data, **result})
                 elif self.path == '/api/action':
                     previous_revision = WORKSPACE.data['revision']
-                    workspace = WORKSPACE.action(data)
+                    # Documents a live reader has open in its editor, which agent commands keep on screen.
+                    editing = {path for reader in live_sessions() for path in reader.get('editing', []) if isinstance(path, str)}
+                    workspace = WORKSPACE.action(data, editing)
                     if not data['action'].startswith('comment-'):
                         editor().observe()
                     if data['action'].startswith('comment-') and workspace['revision'] != previous_revision:

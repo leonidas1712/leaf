@@ -30,6 +30,7 @@ import { basename, displayPath } from '@/lib/paths'
 import { actions, getState, setState, toggleExpanded, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { groupStyle, Swatches } from './groups'
+import { PinMenuItem } from './pins'
 
 const key = (id: string) => 'collection:' + id
 
@@ -90,6 +91,8 @@ function DocumentRow({ path, collection, depth, active, missing }: {
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuItem onSelect={() => actions.open(path)}>Open</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.split(path, 'right')}>Open to the right</ContextMenuItem>
+        <PinMenuItem path={path} />
         <ContextMenuItem onSelect={() => actions.reveal(path)}>{REVEAL_LABEL}</ContextMenuItem>
         <ContextMenuItem onSelect={() => navigator.clipboard.writeText(path)}>Copy path</ContextMenuItem>
         <ContextMenuSeparator />

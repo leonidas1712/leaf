@@ -570,6 +570,15 @@
   background-color: color-mix(in oklch, var(--g-yellow) 52%, transparent);
 }
 
+/* Find in document: every match, and a stronger mark on the current one. */
+::highlight(leaf-find) {
+  background-color: color-mix(in oklch, var(--g-orange) 28%, transparent);
+}
+::highlight(leaf-find-current) {
+  background-color: color-mix(in oklch, var(--g-orange) 70%, transparent);
+  color: var(--ink);
+}
+
 /* Editor: conflict blocks get a labelled bar with the choices; regions are tinted. */
 .leaf-editor .cm-conflict-base {
   background-color: color-mix(in oklch, var(--ink-faint) 10%, transparent);

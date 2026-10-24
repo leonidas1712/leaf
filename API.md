@@ -41,6 +41,42 @@ Group operations keep member tabs contiguous at their first occurrence. A reques
 Creating a group returns its ID inside the returned workspace's groups array.
 Explicit `open-file --group` requires an existing group; it does not infer or create one.
 
+## Split panes
+
+`split` is `null` or `{panes:[first, second], focus:0|1, layout:"columns"|"rows", ratio}`.
+`first` is the left or top pane. `ratio` is the first pane's share, from 0.2 to 0.8. `panes[focus]` is always `active`.
+After every action, the server normalizes the split. If the active document is the other pane's document, focus moves to that pane.
+If it is any other document, it replaces the focused pane's document. If either pane's tab closes, the split becomes `null`.
+
+| Action | Fields | Behavior |
+| --- | --- | --- |
+| split | path?, side?, beside?, ratio? | Show path (default active; opened if needed) on side left/right/up/down (default right) of beside, and focus it |
+| split-resize | ratio | Change the first pane's share; requires a split |
+| unsplit | path? | Return to one pane showing path (must be a pane) or the focused document |
+
+Without `beside`, the other pane shows the active tab. If the target is the active tab, it shows the most recent other open tab.
+Closing the active tab during a split focuses the other pane, which then becomes the only pane.
+The split is durable workspace state, so every connected reader shows the same layout. Browsers change it only through actions.
+
+Readers report `editing` in their sync `state`. It lists the paths open in an editor or holding unsaved changes, and never their contents.
+Actions sent with `origin:"agent"` keep a document from that list on screen when they would show a different document.
+The other document goes into the other pane, and the action creates a split if needed. `active` and focus stay on the user's document.
+`replace:true` turns this protection off. `open-file` with `background:true` adds the tab without changing `active`.
+The CLI sends `origin:"agent"` with every workspace action. Browser actions omit it.
+
+## Pins
+
+`pins` is an ordered list of absolute document paths shown at the top of the sidebar. It is independent of tabs:
+pinning never opens a document, and closing a tab keeps its pin.
+
+| Action | Fields | Effect |
+| --- | --- | --- |
+| pin | path, index? | Pin a supported text document at index (default the end), or move an existing pin to index |
+| unpin | path | Remove the pin; the document and its tab are unchanged |
+
+`index` counts from 0 in the list without the pin being moved. A missing file, a folder, or an unsupported type is rejected.
+Pinned paths are granted like collection documents, so a pin whose file disappeared is reported in `missing`.
+
 ## Browser synchronization
 
 POST `/api/sync` sends `{instance, session, revision, state, view?, viewOnly?}`.
