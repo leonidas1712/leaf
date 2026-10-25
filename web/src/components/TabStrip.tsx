@@ -315,7 +315,7 @@ export function TabStrip() {
             >
               {(
                 [
-                  ['read', 'Read', 'Read the rendered document'],
+                  ['read', 'Read', 'Read the rendered document (Esc, then r)'],
                   ['edit', 'Edit', 'Edit the file (e)'],
                   ['split', 'Split', 'Edit beside a live preview'],
                 ] as const

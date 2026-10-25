@@ -43,6 +43,9 @@ export function EditBar({ path }: { path: string }) {
                 : 'Saved to disk'}
         </span>
         <div className="ml-auto flex items-center gap-1">
+          <span className="mr-1 text-[11.5px] text-ink-faint max-[900px]:hidden">
+            <Kbd className="h-4 text-[10px]">Esc</Kbd> <Kbd className="h-4 text-[10px]">r</Kbd> to read
+          </span>
           {dirty && (
             <Button size="xs" variant="ghost" onClick={() => discardDraft(path)} className="text-ink-muted">
               <Undo2 /> Discard

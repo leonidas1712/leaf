@@ -103,6 +103,7 @@ function onKey(event: KeyboardEvent) {
     e: active
       ? () => (getState().editModes[active] ? closeEditor(active) : openEditor(active, 'edit'))
       : undefined,
+    r: active && getState().editModes[active] ? () => closeEditor(active) : undefined,
   }
   const tab = /^[1-9]$/.test(key) ? (key === '9' ? workspace.tabs.at(-1) : workspace.tabs[Number(key) - 1]) : undefined
   const run = bindings[key] ?? (tab ? () => actions.focus(tab.path) : undefined)

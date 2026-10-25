@@ -264,6 +264,9 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
         ...historyKeymap,
         ...searchKeymap,
         indentWithTab,
+        // Last, so Esc first closes find and collapses extra cursors. Leaving the editor lets
+        // single-key shortcuts work again: Esc, then r, returns to reading.
+        { key: 'Escape', run: (v) => (v.contentDOM.blur(), true) },
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) flush(update.view)

@@ -156,6 +156,7 @@ leaf group open Review                        # restore them, positions included
 | <kbd>/</kbd> | Filter the sidebar | <kbd>s</kbd> | Toggle Markdown source |
 | <kbd>o</kbd> | Open a document by path | <kbd>t</kbd> | Toggle light and dark |
 | <kbd>c</kbd> or <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>M</kbd> | Comment on the selection | <kbd>p</kbd> | Pin or unpin the document |
+| <kbd>Esc</kbd> <kbd>r</kbd> | Leave the editor and read | <kbd>e</kbd> | Toggle the editor |
 | <kbd>⌘</kbd> <kbd>F</kbd> | Find in the document | <kbd>\|</kbd> | Split with the previous document, or close the split |
 
 ## Aboard artifacts
