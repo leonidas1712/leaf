@@ -9,6 +9,7 @@ from unittest.mock import patch
 from workspace import Workspace
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from urllib.parse import quote
 import server
 
 
@@ -201,6 +202,10 @@ class BridgeTests(unittest.TestCase):
                 code, body = self.request('/api/comments', headers=headers)
                 self.assertEqual(json.loads(body)['comments'][0]['location']['line'], 2)
                 self.assertEqual(json.loads(self.request('/api/comments?status=resolved', headers=headers)[1])['comments'], [])
+                self.assertNotIn('markdown', json.loads(body))
+                exported = json.loads(self.request('/api/comments?status=all&format=md', headers=headers)[1])
+                self.assertIn('marked resolved: Update', exported['markdown'])
+                self.assertEqual(len(exported['comments']), 1)
                 result = subprocess.run([sys.executable, str(server.BASE / 'leaf.py'), 'comments', '--format', 'md'],
                                         env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -273,6 +278,27 @@ class BridgeTests(unittest.TestCase):
         _, body = self.request('/api/poll', {'session': 'expired', 'state': {}}, {'X-Leaf-Token': server.TOKEN})
         self.assertEqual(json.loads(body), [])
         self.assertEqual(server.COMMANDS['old']['status'], 'expired')
+
+    def test_documents_show_images_from_their_own_folder(self):
+        """A granted document reaches images beside or below it, never above, hidden, or linked."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'report/figures').mkdir(parents=True)
+            (root / 'report/.cache').mkdir()
+            document = root / 'report/paper.md'
+            document.write_text('![Figure](figures/one.png)')
+            for image in ('report/figures/one.png', 'report/.cache/two.png', 'outside.png', 'report/notes.txt'):
+                (root / image).write_bytes(b'image')
+            (root / 'report/figures/link.png').symlink_to(root / 'outside.png')
+            key = server.grant_file(document)
+            token = {'X-Leaf-Token': server.TOKEN}
+            fetch = lambda path: self.request(f'/api/image?document={key}&path={quote(str(path))}', headers=token)
+            self.assertEqual(fetch(root / 'report/figures/one.png'), (200, b'image'))
+            for refused in ('report/.cache/two.png', 'outside.png', 'report/figures/../../outside.png', 'report/figures/link.png',
+                            'report/notes.txt', 'report/figures/missing.png'):
+                self.assertEqual(fetch(root / refused)[0], 400, refused)
+            self.assertEqual(self.request(f'/api/image?document={key}&path={quote(str(root / "report/figures/one.png"))}')[0], 403)
+            self.assertEqual(self.request(f'/api/image?document=unknown&path={quote(str(root / "report/figures/one.png"))}', headers=token)[0], 400)
 
     def test_restart_refreshes_grants_and_keeps_missing_tabs(self):
         """A new server instance sends fresh file grants even at the same saved revision."""

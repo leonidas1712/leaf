@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, Code2, Columns2, Copy, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { BookOpen, ClipboardCopy, Code2, Columns2, Copy, Download, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
 import { REVEAL_LABEL } from '@/lib/api'
 import { trail } from '@/lib/collections'
+import { exportComments } from './CommentsRail'
 import { openFind } from './FindBar'
 import { togglePin } from './pins'
 import { groupStyle } from './groups'
@@ -96,6 +97,14 @@ export function CommandPalette() {
           workspace.pins?.includes(workspace.active)
             ? { label: 'Unpin current document', icon: PinOff, shortcut: 'P', run: () => togglePin(workspace) }
             : { label: 'Pin current document', icon: Pin, shortcut: 'P', run: () => togglePin(workspace) },
+          ...(workspace.comments?.some((comment) => comment.path === workspace.active)
+            ? [
+                { label: 'Copy unresolved comments as Markdown', icon: ClipboardCopy, run: () => exportComments(workspace.active!, 'clipboard', true) },
+                { label: 'Download unresolved comments as .md', icon: Download, run: () => exportComments(workspace.active!, 'file', true) },
+                { label: 'Copy comments as Markdown', icon: ClipboardCopy, run: () => exportComments(workspace.active!, 'clipboard') },
+                { label: 'Download comments as .md', icon: Download, run: () => exportComments(workspace.active!, 'file') },
+              ]
+            : []),
           { label: 'Copy path of current document', icon: Copy, run: () => navigator.clipboard.writeText(workspace.active!) },
           { label: `${REVEAL_LABEL}: current document`, icon: FolderSearch, run: () => actions.reveal(workspace.active!) },
           { label: 'Close current tab', icon: X, shortcut: 'X', run: () => actions.close(workspace.active!) },

@@ -11,7 +11,7 @@ import time
 import webbrowser
 import fcntl
 from workspace import Workspace, TEXT_EXTENSIONS
-from comments import list_comments
+from comments import list_comments, markdown_comments
 from reveal import reveal_path
 from editing import Editing, ACTIONS
 from versions import Changed
@@ -66,6 +66,29 @@ def grant_file(path):
     key = FILE_IDS.setdefault(str(path), secrets.token_urlsafe(18))
     FILES[key] = path
     return key
+
+
+def document_image(document_id, source):
+    """Resolve an image a granted document references from its own folder or a subfolder.
+
+    Opening one document is enough to see its figures; nothing above its folder, hidden, or
+    reached through a link is served."""
+    document = FILES.get(document_id)
+    if not document or document.suffix.lower() not in TEXT_EXTENSIONS:
+        raise ValueError('Document grant is unavailable.')
+    folder = document.parent
+    requested = Path(source)
+    if not requested.is_absolute() or requested.suffix.lower() not in EXTENSIONS - TEXT_EXTENSIONS:
+        raise ValueError('Choose an image beside the document.')
+    try:
+        relative = requested.relative_to(folder)
+    except ValueError:
+        raise ValueError('Images must be in the document folder or below it.') from None
+    if any(part in ('..', '.') or part.startswith('.') or part in SKIP for part in relative.parts):
+        raise ValueError('Images must be in the document folder or below it.')
+    if requested.resolve(strict=True) != requested or not requested.is_file():
+        raise ValueError('Image is unavailable.')
+    return requested
 
 
 def scan_folder(path):
@@ -214,7 +237,9 @@ class Handler(BaseHTTPRequestHandler):
                     statuses = query.get('status', ['open', 'working'])
                     if any(status not in ('open', 'working', 'resolved', 'all') for status in statuses):
                         raise ValueError('Unknown comment status.')
-                    self.respond({'comments': list_comments(WORKSPACE.data, paths, None if 'all' in statuses else statuses)})
+                    threads = list_comments(WORKSPACE.data, paths, None if 'all' in statuses else statuses)
+                    # format=md adds the same Markdown as `leaf comments --format md`, for export.
+                    self.respond({'comments': threads, **({'markdown': markdown_comments(threads)} if query.get('format') == ['md'] else {})})
             elif url.path == '/api/complete':
                 self.respond(complete_paths(query.get('path', [''])[0]))
             elif url.path == '/api/workspace':
@@ -241,6 +266,11 @@ class Handler(BaseHTTPRequestHandler):
                         except UnicodeError:
                             pass
                     self.respond(raw, content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+            elif url.path == '/api/image':
+                path = document_image(query.get('document', [''])[0], query.get('path', [''])[0])
+                if path.stat().st_size > 10 * 1024 * 1024:
+                    raise ValueError('Image exceeds the 10 MB reading limit.')
+                self.respond(path.read_bytes(), content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
             elif url.path == '/api/library':
                 root = ROOTS.get(query.get('id', [''])[0])
                 if not root:

@@ -186,3 +186,18 @@ export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null 
 export function forgetSelection() {
   remembered = null
 }
+
+const highlightOwners = new Map<string, Map<symbol, Range[]>>()
+
+/**
+ * Set one owner's ranges in a named highlight. The CSS highlight registry is global to the page,
+ * so each pane contributes its own ranges instead of replacing the others'. Empty ranges remove the owner.
+ */
+export function shareHighlight(name: string, owner: symbol, ranges: Range[]) {
+  if (!('highlights' in CSS)) return
+  const owners = highlightOwners.get(name) ?? new Map<symbol, Range[]>()
+  highlightOwners.set(name, owners)
+  if (ranges.length) owners.set(owner, ranges)
+  else owners.delete(owner)
+  CSS.highlights.set(name, new Highlight(...[...owners.values()].flat()))
+}

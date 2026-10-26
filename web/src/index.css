@@ -343,6 +343,57 @@
   max-width: 100%;
   border-radius: 8px;
 }
+.prose-leaf .image-frame {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+.prose-leaf .image-frame[style*='width'] img {
+  width: 100%;
+}
+.prose-leaf .image-frame img {
+  display: block;
+}
+.prose-leaf .image-handle {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: min(48px, 40%);
+  translate: 0 -50%;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.7);
+  background: rgb(0 0 0 / 0.55);
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 120ms;
+  touch-action: none;
+}
+.prose-leaf .image-handle::before {
+  /* A wider hit area than the visible bar. */
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+}
+.prose-leaf .image-handle[data-side='left'] {
+  left: 8px;
+}
+.prose-leaf .image-handle[data-side='right'] {
+  right: 8px;
+}
+.prose-leaf .image-frame:hover .image-handle,
+.prose-leaf .image-frame[data-resizing] .image-handle {
+  opacity: 1;
+}
+.prose-leaf .image-frame[data-resizing] {
+  user-select: none;
+}
+@media print {
+  .prose-leaf .image-handle {
+    display: none;
+  }
+}
 .prose-leaf img:not([src]) {
   display: inline-block;
   padding: 0.3em 0.6em;

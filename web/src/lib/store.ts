@@ -78,6 +78,8 @@ export interface LeafState {
   drafts: Record<string, Draft>
   /** Documents shown in the editor ('edit') or editor beside preview ('split'); others read. */
   editModes: Record<string, 'edit' | 'split'>
+  /** Comment threads folded to their first line in this browser. */
+  collapsedComments: Set<string>
   /** A diff to show over the document: two texts and what they are. */
   diff: null | { path: string; title: string; before: string; after: string }
 }
@@ -94,6 +96,8 @@ export interface Draft {
 }
 
 const readerSession = crypto.randomUUID()
+
+const COLLAPSED_KEY = 'leaf:collapsed-comments'
 
 let state: LeafState = {
   connection: connected ? 'connecting' : 'unauthenticated',
@@ -120,6 +124,7 @@ let state: LeafState = {
   stamps: {},
   drafts: {},
   editModes: {},
+  collapsedComments: readCollapsedComments(),
   diff: null,
 }
 
@@ -594,6 +599,28 @@ export function stepTab(delta: number) {
   const index = ws.tabs.findIndex((tab) => tab.path === ws.active)
   const next = ws.tabs[(index + delta + ws.tabs.length) % ws.tabs.length]
   if (next) actions.focus(next.path)
+}
+
+/** Comment threads folded to one line in this browser; a per-viewer convenience, not shared state. */
+export function readCollapsedComments(): Set<string> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]')
+    return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+export function toggleCommentCollapsed(id: string, collapse?: boolean) {
+  const collapsed = new Set(state.collapsedComments)
+  if (collapse ?? !collapsed.has(id)) collapsed.add(id)
+  else collapsed.delete(id)
+  setState({ collapsedComments: collapsed })
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]))
+  } catch {
+    // Storage can be unavailable (private windows); collapsing still works for this session.
+  }
 }
 
 export function toggleExpanded(path: string, open?: boolean) {

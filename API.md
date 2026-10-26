@@ -7,6 +7,7 @@ Keep the token out of logs and source control. Host and Origin must match the lo
 
 GET `/api/workspace` returns `{workspace, entries, missing}`. Entries contain absolute paths and temporary file grant IDs.
 GET `/api/file?id=ID` reads a granted file. Refresh grants after server restart or newly opened files.
+GET `/api/image?document=ID&path=ABSOLUTE` reads a PNG, JPEG, GIF, WebP, or AVIF image that the granted document references from its own folder or a subfolder. Hidden folders, links, and paths above the document are refused.
 POST `/api/action` accepts `{action, ...fields}` and returns `{status:"saved", revision, workspace}`.
 All durable UI operations should use this endpoint. The CLI uses the same actions.
 
@@ -162,6 +163,7 @@ All timestamps use ISO-8601 UTC. Status changes append timeline entries, even wi
 It returns `{comments: [...]}` with derived `location: {state, line, endLine}` on each thread.
 Repeat `path` to select documents. Without paths, it selects the active document. `all=true` selects all documents.
 Repeat `status` to select states. The default is open plus working. `status=all` includes resolved threads.
+Add `format=md` to also receive `markdown`: the threads in the format of `leaf comments --format md`, used for export.
 Location states are attached, changed, ambiguous, and detached. Lines are one-based and null without a unique quote match.
 Document-level comments have attached state and null lines. Missing files do not delete threads.
 Quote matching collapses whitespace and retries with simplified Markdown removal while retaining source offsets.

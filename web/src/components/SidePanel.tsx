@@ -1,10 +1,11 @@
 import { useState, type RefObject } from 'react'
-import { Bot, Check, CheckCheck, MessageSquarePlus } from 'lucide-react'
+import { Bot, Check, CheckCheck, ClipboardCopy, Download, MessageSquarePlus } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { setState, useLeaf, type Heading } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { agentPrompt, CommentsRail, documentComments, startComment } from './CommentsRail'
+import { agentPrompt, CommentsRail, documentComments, exportComments, startComment } from './CommentsRail'
 import { HistoryPanel } from './HistoryPanel'
 import { Outline } from './Outline'
 
@@ -20,7 +21,6 @@ export function SidePanel({
   editing = false,
   headings,
   onHeading,
-  compact = false,
 }: {
   path: string
   viewport: RefObject<HTMLDivElement | null>
@@ -29,8 +29,6 @@ export function SidePanel({
   editing?: boolean
   headings: Heading[]
   onHeading: (id: string) => boolean
-  /** Hide when this pane, rather than the window, is narrow. */
-  compact?: boolean
 }) {
   const open = useLeaf((s) => s.outlineOpen)
   const choice = useLeaf((s) => s.sidePanel)
@@ -68,7 +66,7 @@ export function SidePanel({
   return (
     <aside
       aria-label="Document side panel"
-      className={cn('print-hide w-72 shrink-0', compact ? '@max-[880px]:hidden' : 'max-[1000px]:hidden')}
+      className="print-hide w-72 shrink-0 @max-[880px]:w-60 @max-[640px]:hidden"
     >
       <div className="sticky top-0 z-20 -mx-2 flex flex-wrap items-center gap-1 bg-paper/95 px-2 pt-3 pb-3 backdrop-blur-sm">
         <ToggleGroup
@@ -103,6 +101,43 @@ export function SidePanel({
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1600)
               }),
+            )}
+            {comments.length > 0 && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Export comments"
+                        className="grid size-7 place-items-center rounded-md text-ink-muted transition-colors hover:bg-accent hover:text-ink"
+                      >
+                        <Download className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Export comments</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="w-56">
+                  {unresolved > 0 && (
+                    <>
+                      <DropdownMenuItem onSelect={() => exportComments(path, 'clipboard', true)}>
+                        <ClipboardCopy /> Copy unresolved
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => exportComments(path, 'file', true)}>
+                        <Download /> Download unresolved .md
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem onSelect={() => exportComments(path, 'clipboard')}>
+                    <ClipboardCopy /> Copy all (incl. resolved)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => exportComments(path, 'file')}>
+                    <Download /> Download all .md
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         )}

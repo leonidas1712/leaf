@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, CircleDot, Copy, Loader, MoreHorizontal, Pencil, RotateCcw, TextCursorInput, Trash2, TriangleAlert } from 'lucide-react'
+import { Check, ChevronDown, CircleDot, Copy, Loader, MoreHorizontal, Pencil, RotateCcw, TextCursorInput, Trash2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Comment, CommentReply } from '@/lib/api'
 import { focusedArticle, forgetSelection, selectionAnchor } from '@/lib/anchors'
-import { actions, AUTHOR, setState } from '@/lib/store'
+import { actions, AUTHOR, setState, toggleCommentCollapsed, useLeaf } from '@/lib/store'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -157,7 +157,7 @@ function StatusEntry({ entry }: { entry: CommentReply }) {
   )
 }
 
-function Entry({ comment, entry, first }: { comment: Comment; entry: CommentReply; first: boolean }) {
+function Entry({ comment, entry, first, folded = false }: { comment: Comment; entry: CommentReply; first: boolean; folded?: boolean }) {
   const [editing, setEditing] = useState(false)
   if (entry.status) return <StatusEntry entry={entry} />
   const mine = entry.author === AUTHOR
@@ -208,7 +208,7 @@ function Entry({ comment, entry, first }: { comment: Comment; entry: CommentRepl
           }}
         />
       ) : (
-        <Body text={entry.body} className="pl-7" />
+        <Body text={entry.body} className={cn('pl-7', folded && 'line-clamp-2')} />
       )}
     </div>
   )
@@ -236,6 +236,7 @@ export function CommentCard({
   active: boolean
 }) {
   const [editing, setEditing] = useState(false)
+  const collapsed = useLeaf((s) => s.collapsedComments.has(comment.id)) && !editing
   const resolved = comment.status === 'resolved'
   const working = comment.status === 'working'
   const first: CommentReply = { id: '', author: comment.author, body: comment.body, created: comment.created, edited: comment.edited }
@@ -275,10 +276,32 @@ export function CommentCard({
               }}
             />
           ) : (
-            <Entry comment={comment} entry={first} first />
+            <Entry comment={comment} entry={first} first folded={collapsed} />
+          )}
+          {collapsed && comment.replies.length > 0 && (
+            <p className="mt-1 pl-7 text-[11.5px] text-ink-faint">
+              {comment.replies.length} more {comment.replies.length === 1 ? 'entry' : 'entries'}
+            </p>
           )}
         </div>
         <div className="-mt-0.5 -mr-1 flex shrink-0 items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={collapsed ? 'Expand thread' : 'Collapse thread'}
+                aria-expanded={!collapsed}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  toggleCommentCollapsed(comment.id)
+                }}
+                className="grid size-7 place-items-center rounded-md text-ink-faint transition-colors hover:bg-accent hover:text-ink"
+              >
+                <ChevronDown className={cn('size-4 transition-transform duration-150', collapsed && '-rotate-90')} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{collapsed ? 'Expand' : 'Collapse'}</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -344,9 +367,8 @@ export function CommentCard({
         </div>
       </div>
 
-      {comment.replies.map((entry) => (
-        <Entry key={entry.id} comment={comment} entry={entry} first={false} />
-      ))}
+      {!collapsed &&
+        comment.replies.map((entry) => <Entry key={entry.id} comment={comment} entry={entry} first={false} />)}
 
       {working && (
         <div className="flex items-center gap-2 text-[12px] text-ink-muted">
@@ -359,7 +381,7 @@ export function CommentCard({
         </div>
       )}
 
-      {active && !resolved && (
+      {active && !resolved && !collapsed && (
         <Composer compact autoFocus={false} placeholder="Reply…" submitLabel="Reply" onSubmit={(body) => actions.commentReply(comment, body)} />
       )}
     </article>

@@ -108,7 +108,6 @@ export function Panes({ theme }: { theme: 'light' | 'dark' }) {
               stamp={stamps[path]}
               prefs={workspace.reader ?? DEFAULT_READER}
               focused={focused}
-              compact={!!split && columns}
             />
           </div>,
         ]

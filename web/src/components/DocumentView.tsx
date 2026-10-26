@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fetchFile, type Entry, type ReaderPrefs } from '@/lib/api'
+import { attachImageResize, frameImage } from '@/lib/images'
+import { fetchDocumentImage, fetchFile, type Entry, type ReaderPrefs } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdown, resolveRelative } from '@/lib/markdown'
 import { renderDiagram } from '@/lib/mermaid'
@@ -44,7 +45,6 @@ export function DocumentView({
   stamp,
   prefs,
   focused = true,
-  compact = false,
 }: {
   path: string
   entry: Entry | undefined
@@ -54,8 +54,6 @@ export function DocumentView({
   stamp: string | null | undefined
   prefs: ReaderPrefs
   focused?: boolean
-  /** Hide the side panel when the pane is narrow, as in a side-by-side split. */
-  compact?: boolean
 }) {
   const pane = useId()
   const viewport = useRef<HTMLDivElement>(null)
@@ -203,17 +201,23 @@ export function DocumentView({
             img.removeAttribute('src')
             const target = /^[a-z][a-z0-9+.-]*:/i.test(reference) ? null : resolveRelative(reference.split('#')[0], path)
             const grant = target ? grants.current.get(target) : undefined
-            if (!grant?.id || !/\.(png|jpe?g|gif|webp|avif)$/i.test(target ?? '')) {
-              img.alt = img.alt || (target ? 'Image outside the opened folders' : 'Remote image not loaded')
+            if (!target || !/\.(png|jpe?g|gif|webp|avif)$/i.test(target)) {
+              img.alt = img.alt || (target ? 'Unsupported image type' : 'Remote image not loaded')
               return
             }
             try {
-              const url = URL.createObjectURL(await fetchFile(grant.id, controller.signal))
+              // Images in opened folders have their own grant; others load through the document's,
+              // which reaches only its own folder and below.
+              if (!grant?.id && !grantId) throw new Error('Document grant is unavailable')
+              const blob = grant?.id ? await fetchFile(grant.id, controller.signal) : await fetchDocumentImage(grantId!, target, controller.signal)
+              const url = URL.createObjectURL(blob)
               fresh.push(url)
               img.src = url
               await img.decode().catch(() => {})
+              frameImage(img, path, reference)
             } catch {
               img.alt = img.alt || 'Image unavailable'
+              img.title = "Image unavailable. Leaf shows images from the document's folder and its subfolders."
             }
           }),
         ])
@@ -284,6 +288,8 @@ export function DocumentView({
 
   useEffect(() => () => urls.current.forEach(URL.revokeObjectURL), [])
 
+  useEffect(() => (article.current ? attachImageResize(article.current) : undefined), [])
+
   const onClick = (event: React.MouseEvent) => {
     const element = event.target as HTMLElement
     if (element.closest('[data-copy]')) {
@@ -340,14 +346,13 @@ export function DocumentView({
       onPointerDownCapture={() => !focused && actions.focus(path)}
       data-pane-focused={focused || undefined}
       className={cn(
-        'print-flow relative min-h-0 flex-1 overflow-y-auto bg-paper [scrollbar-gutter:stable]',
-        compact && '@container',
+        'print-flow @container relative min-h-0 flex-1 overflow-y-auto bg-paper [scrollbar-gutter:stable]',
       )}
     >
       {finding && <FindBar article={article} viewport={viewport} version={current} />}
       <div
         className={cn(
-          'mx-auto flex gap-12 px-10 pt-10 pb-32 max-[900px]:px-6',
+          'mx-auto flex gap-12 px-10 pt-10 pb-32 @max-[880px]:gap-6 @max-[880px]:px-6',
           mode === 'split' || prefs.width === 'full' ? 'max-w-none' : 'max-w-[1400px]',
         )}
       >
@@ -404,7 +409,6 @@ export function DocumentView({
             editing={mode === 'edit'}
             headings={outline.headings}
             onHeading={scrollToHeading}
-            compact={compact}
           />
         )}
       </div>

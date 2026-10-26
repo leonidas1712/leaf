@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Comment } from '@/lib/api'
-import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, type TextIndex } from '@/lib/anchors'
-import { displayPath } from '@/lib/paths'
+import { commentsMarkdown, type Comment } from '@/lib/api'
+import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, shareHighlight, type TextIndex } from '@/lib/anchors'
+import { basename, displayPath } from '@/lib/paths'
 import { actions, getState, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { CommentCard, Composer, type Placement } from './CommentCard'
@@ -24,6 +24,27 @@ export function agentPrompt(path: string) {
     `For each one: \`leaf comment working ID --author <your name>\`, edit the file, then \`leaf comment resolve ID "what you changed" --author <your name>\`.`,
     `If a comment needs my decision or you disagree, reply with \`leaf comment reply ID "…" --author <your name>\` and leave it open.`,
   ].join(' ')
+}
+
+/** Export every thread on `path`, resolved ones included: to the clipboard, or as a .md download. */
+export async function exportComments(path: string, to: 'clipboard' | 'file', unresolved = false) {
+  try {
+    const { count, markdown } = await commentsMarkdown(path, unresolved)
+    if (!count) return toast(unresolved ? 'This document has no unresolved comments' : 'This document has no comments to export')
+    const what = `${count}${unresolved ? ' unresolved' : ''} comment${count === 1 ? '' : 's'}`
+    if (to === 'clipboard') {
+      await navigator.clipboard.writeText(markdown)
+      return toast(`Copied ${what} as Markdown`)
+    }
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }))
+    link.download = basename(path).replace(/\.[^.]+$/, '') + (unresolved ? '-open-comments.md' : '-comments.md')
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+    toast(`Exported ${what} to ${link.download}`)
+  } catch (error) {
+    toast((error as Error).message)
+  }
 }
 
 interface Placed {
@@ -54,6 +75,8 @@ export function CommentsRail({
     () => documentComments(all, path).filter((c) => showResolved || c.status !== 'resolved' || c.id === active),
     [all, path, showResolved, active],
   )
+  // Each rail's own key in the page-wide highlights, so split panes don't erase each other's.
+  const [owner] = useState(() => Symbol(path))
   const rail = useRef<HTMLDivElement>(null)
   const header = useRef<HTMLDivElement>(null)
   const cards = useRef(new Map<string, HTMLElement>())
@@ -84,16 +107,15 @@ export function CommentsRail({
 
   // Highlights: every open thread's passage, plus a stronger one for the thread in focus.
   useEffect(() => {
-    if (!('highlights' in CSS)) return
     const ranges = placed.filter((p) => p.range && (p.comment === 'draft' || p.comment.status !== 'resolved'))
     const key = (p: Placed) => (p.comment === 'draft' ? 'draft' : p.comment.id)
-    CSS.highlights.set('leaf-comment', new Highlight(...ranges.map((p) => p.range!)))
-    CSS.highlights.set('leaf-comment-active', new Highlight(...ranges.filter((p) => key(p) === active).map((p) => p.range!)))
+    shareHighlight('leaf-comment', owner, ranges.map((p) => p.range!))
+    shareHighlight('leaf-comment-active', owner, ranges.filter((p) => key(p) === active).map((p) => p.range!))
     return () => {
-      CSS.highlights.delete('leaf-comment')
-      CSS.highlights.delete('leaf-comment-active')
+      shareHighlight('leaf-comment', owner, [])
+      shareHighlight('leaf-comment-active', owner, [])
     }
-  }, [placed, active])
+  }, [placed, active, owner])
 
   // Click a highlighted passage to focus its thread; click plain text to clear focus.
   useEffect(() => {

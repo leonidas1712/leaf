@@ -189,6 +189,12 @@ export async function fetchFile(id: string, signal?: AbortSignal): Promise<Blob>
   return (await request('/api/file?id=' + encodeURIComponent(id), undefined, { signal })).blob()
 }
 
+/** An image referenced by a granted document, from the document's folder or below it. */
+export async function fetchDocumentImage(document: string, path: string, signal?: AbortSignal): Promise<Blob> {
+  const query = new URLSearchParams({ document, path })
+  return (await request('/api/image?' + query, undefined, { signal })).blob()
+}
+
 export interface Completion {
   path: string
   kind: 'dir' | 'file'
@@ -197,6 +203,14 @@ export interface Completion {
 /** Children of the deepest existing directory in a typed path, filtered by the typed prefix. */
 export async function completePath(prefix: string, signal?: AbortSignal): Promise<Completion[]> {
   return (await request('/api/complete?path=' + encodeURIComponent(prefix), undefined, { signal })).json()
+}
+
+/** Every comment thread on `path`, resolved ones included, as the CLI's Markdown. */
+export async function commentsMarkdown(path: string, unresolved = false): Promise<{ count: number; markdown: string }> {
+  const query = new URLSearchParams({ path, format: 'md' })
+  for (const status of unresolved ? ['open', 'working'] : ['all']) query.append('status', status)
+  const result: { comments: unknown[]; markdown: string } = await (await request('/api/comments?' + query)).json()
+  return { count: result.comments.length, markdown: result.markdown }
 }
 
 /** Show a file or folder in the system file manager (Finder on macOS). */
