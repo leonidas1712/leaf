@@ -113,6 +113,7 @@ export function enhance(root: HTMLElement): Enhanced {
 export async function highlight(blocks: HTMLElement[]) {
   if (!blocks.length) return
   const { default: hljs } = await import('highlight.js/lib/common')
+  if (!hljs.getLanguage('latex')) hljs.registerLanguage('latex', (await import('highlight.js/lib/languages/latex')).default)
   for (const code of blocks) {
     const language = [...code.classList].find((name) => name.startsWith('language-'))?.slice(9)
     if (language && !hljs.getLanguage(language)) continue

@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import quote
 import server
+from tex import TexProjects
 
 
 class BridgeTests(unittest.TestCase):
@@ -19,6 +20,8 @@ class BridgeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Run the handler on an ephemeral loopback port without runtime credentials."""
+        cls.tex_state = tempfile.TemporaryDirectory()
+        server.TEX = TexProjects(cls.tex_state.name)
         cls.http = server.ThreadingHTTPServer(('127.0.0.1', 0), server.Handler)
         cls.url = f'http://127.0.0.1:{cls.http.server_port}'
         threading.Thread(target=cls.http.serve_forever, daemon=True).start()
@@ -28,6 +31,7 @@ class BridgeTests(unittest.TestCase):
         """Close the test listener after all requests finish."""
         cls.http.shutdown()
         cls.http.server_close()
+        cls.tex_state.cleanup()
 
     def request(self, path, data=None, headers=None):
         """Return status and body for both successful and rejected requests."""

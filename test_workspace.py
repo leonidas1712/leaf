@@ -97,6 +97,30 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIsNone(data['split'])
         self.assertEqual(data['active'], first)
 
+    def test_switching_tabs_updates_recent_files(self):
+        """Focusing an open tab counts as recent, so going back among many tabs is one click."""
+        self.open_both()
+        first, second = str(self.first), str(self.second)
+        self.workspace.action({'action': 'focus-tab', 'path': first})
+        self.assertEqual(self.workspace.data['recentFiles'][:2], [first, second])
+        self.workspace.action({'action': 'focus-tab', 'path': second, 'origin': 'agent'})
+        self.assertEqual(self.workspace.data['recentFiles'][:2], [second, first])
+
+    def test_split_keeps_a_pdf_beside_the_text_being_read(self):
+        """A focused PDF pane stays put: the next text tab replaces the text pane instead."""
+        self.open_both()
+        paper = self.root / 'paper.pdf'
+        paper.write_bytes(b'%PDF-1.4\n')
+        first, second, pdf = str(self.first), str(self.second), str(paper)
+        self.workspace.action({'action': 'open-file', 'path': pdf})
+        self.workspace.action({'action': 'focus-tab', 'path': first})
+        data = self.workspace.action({'action': 'split', 'path': pdf, 'side': 'right'})
+        self.assertEqual((data['split']['panes'], data['split']['focus']), ([first, pdf], 1))
+        data = self.workspace.action({'action': 'focus-tab', 'path': second})
+        self.assertEqual((data['split']['panes'], data['split']['focus']), ([second, pdf], 0))
+        with self.assertRaises(ValueError):
+            self.workspace.action({'action': 'comment-add', 'path': pdf, 'body': 'Fix this figure'})
+
     def test_split_opens_documents_and_rejects_invalid_requests(self):
         """A split can open its target, stacks for up and down, and refuses impossible layouts."""
         self.workspace.action({'action': 'open-file', 'path': str(self.first)})

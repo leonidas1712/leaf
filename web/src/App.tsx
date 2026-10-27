@@ -14,13 +14,15 @@ import { EmptyState } from '@/components/EmptyState'
 import { GroupDialog } from '@/components/groups'
 import { LeafMark } from '@/components/LeafMark'
 import { OpenDialog } from '@/components/OpenDialog'
+import { projectFor, recompile } from '@/lib/tex'
+import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { togglePin } from '@/components/pins'
 import { Panes } from '@/components/Panes'
 import { Sidebar } from '@/components/Sidebar'
 import { TabStrip } from '@/components/TabStrip'
 import type { Theme } from '@/lib/api'
 import { basename } from '@/lib/paths'
-import { actions, currentSplit, getState, setState, startSync, stepTab, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, isPdf, setState, startSync, stepTab, useLeaf } from '@/lib/store'
 
 function typing(target: EventTarget | null) {
   const element = target as HTMLElement | null
@@ -59,7 +61,8 @@ function onKey(event: KeyboardEvent) {
     return
   }
   // ⌘F finds in the focused pane: in the editor when it shows one, otherwise in the document.
-  if (mod && !event.altKey && event.key.toLowerCase() === 'f' && workspace?.active && !event.defaultPrevented) {
+  // PDFs leave ⌘F to the browser, which searches their text layer.
+  if (mod && !event.altKey && event.key.toLowerCase() === 'f' && workspace?.active && !isPdf(workspace.active) && !event.defaultPrevented) {
     event.preventDefault()
     const editor = document.querySelector<HTMLElement>('[data-pane-focused] .cm-editor')
     const view = editor && getState().editModes[workspace.active] === 'edit' ? EditorView.findFromDOM(editor) : null
@@ -72,12 +75,12 @@ function onKey(event: KeyboardEvent) {
     findControls.step(event.shiftKey ? -1 : 1)
     return
   }
-  const { openDialog, groupDialog, collectionDialog } = getState()
+  const { openDialog, groupDialog, collectionDialog, shortcutsOpen } = getState()
   if (event.key === 'Escape' && getState().findOpen && !typing(event.target) && !paletteOpen && !openDialog) {
     closeFind()
     return
   }
-  if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || !workspace) return
+  if (mod || event.altKey || typing(event.target) || paletteOpen || openDialog || groupDialog || collectionDialog || shortcutsOpen || !workspace) return
   const key = event.key
   const active = workspace.active
   const bindings: Record<string, (() => unknown) | undefined> = {
@@ -92,6 +95,8 @@ function onKey(event: KeyboardEvent) {
       const previous = [...workspace.recentFiles, ...open].find((path) => open.has(path) && path !== active)
       if (active && previous) actions.split(previous, 'right')
     },
+    '?': () => setState({ shortcutsOpen: true }),
+    b: active && projectFor(active) ? () => recompile(projectFor(active)!.root) : undefined,
     '[': () => stepTab(-1),
     ']': () => stepTab(1),
     x: active ? () => actions.close(active) : undefined,
@@ -186,6 +191,7 @@ export default function App() {
       </div>
       <CommandPalette />
       <OpenDialog />
+      <ShortcutsDialog />
       <GroupDialog />
       <CollectionDialog />
       <DiffDialog />

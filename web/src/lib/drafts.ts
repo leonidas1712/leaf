@@ -4,7 +4,7 @@
  * overlapping changes become conflict markers to resolve before saving.
  */
 import { toast } from 'sonner'
-import { act, getState, setState, type Draft } from './store'
+import { act, getState, isPdf, setState, type Draft } from './store'
 import { countConflicts, hashText, merge, readText, save } from './versions'
 import { basename } from './paths'
 
@@ -26,6 +26,10 @@ function presence(path: string, editing: boolean) {
 
 export async function openEditor(path: string, mode: 'edit' | 'split') {
   const { workspace, entries, drafts } = getState()
+  if (isPdf(path)) {
+    toast('PDFs are read-only in Leaf.')
+    return
+  }
   if (workspace?.sources?.[path]) {
     toast('Board documents are read-only in Leaf. Edit them on the board.')
     return

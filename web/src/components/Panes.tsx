@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { actions, currentSplit, DEFAULT_READER, useLeaf } from '@/lib/store'
+import { actions, currentSplit, DEFAULT_READER, isPdf, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { DocumentView } from './DocumentView'
+import { PdfView } from './PdfView'
 
 const clamp = (ratio: number) => Math.min(0.8, Math.max(0.2, ratio))
 
@@ -99,16 +100,20 @@ export function Panes({ theme }: { theme: 'light' | 'dark' }) {
               // Marks the focused pane: the one tabs, shortcuts, and agents' live commands act on.
               <div aria-hidden className={cn('print-hide h-0.5 shrink-0 transition-colors', focused ? 'bg-leaf' : 'bg-transparent')} />
             )}
-            <DocumentView
-              path={path}
-              entry={entries.get(path)}
-              source={workspace.source}
-              theme={theme}
-              entries={entries}
-              stamp={stamps[path]}
-              prefs={workspace.reader ?? DEFAULT_READER}
-              focused={focused}
-            />
+            {isPdf(path) ? (
+              <PdfView path={path} entry={entries.get(path)} stamp={stamps[path]} focused={focused} />
+            ) : (
+              <DocumentView
+                path={path}
+                entry={entries.get(path)}
+                source={workspace.source}
+                theme={theme}
+                entries={entries}
+                stamp={stamps[path]}
+                prefs={workspace.reader ?? DEFAULT_READER}
+                focused={focused}
+              />
+            )}
           </div>,
         ]
       })}

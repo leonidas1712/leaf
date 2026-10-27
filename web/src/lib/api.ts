@@ -139,6 +139,57 @@ export interface SyncResponse extends Partial<Hydration> {
   commands: LiveCommand[]
   /** Opaque change markers per open path (mtime_ns:size); compare for equality only. */
   stamps?: Record<string, string | null>
+  tex?: TexProject[]
+}
+
+export interface TexIssue {
+  path: string | null
+  line: number | null
+  message: string
+}
+
+export interface TexBuild {
+  ok: boolean
+  startedAt: number
+  finishedAt: number
+  seconds: number
+  errors: TexIssue[]
+  errorCount: number
+  warnings: TexIssue[]
+  warningCount: number
+  boxes: TexIssue[]
+  boxCount: number
+  log: string | null
+  changedDuringBuild: boolean
+}
+
+/** A LaTeX project Leaf builds into its state folder; `pdf` is the live preview's path. */
+export interface TexProject {
+  root: string
+  main: string
+  engine: 'latexmk' | 'tectonic'
+  bin: string | null
+  auto: boolean
+  state: 'idle' | 'queued' | 'building' | 'ok' | 'failed' | 'outdated'
+  building: boolean
+  outdated: boolean
+  changedFiles: string[]
+  pdf: string
+  pdfExists: boolean
+  synctex: boolean
+  lastBuild: TexBuild | null
+}
+
+/** Where a source line sits in the live PDF, in PDF points from the page's top-left corner. */
+export interface TexPosition {
+  pdf: string
+  page: number
+  x: number
+  y: number
+  width: number
+  height: number
+  path: string
+  line: number
 }
 
 export interface LiveCommand {
@@ -211,6 +262,20 @@ export async function commentsMarkdown(path: string, unresolved = false): Promis
   for (const status of unresolved ? ['open', 'working'] : ['all']) query.append('status', status)
   const result: { comments: unknown[]; markdown: string } = await (await request('/api/comments?' + query)).json()
   return { count: result.comments.length, markdown: result.markdown }
+}
+
+export function texAction(body: { action: 'enable' | 'disable' | 'build' | 'auto'; path: string; auto?: boolean; wait?: number }) {
+  return postJSON<{ project?: TexProject; finished?: boolean }>('/api/tex', body)
+}
+
+export async function texForward(path: string, line?: number): Promise<TexPosition> {
+  const query = new URLSearchParams({ path, ...(line ? { line: String(line) } : {}) })
+  return (await request('/api/tex/forward?' + query)).json()
+}
+
+export async function texInverse(pdf: string, page: number, x: number, y: number): Promise<{ path: string; line: number }> {
+  const query = new URLSearchParams({ pdf, page: String(page), x: x.toFixed(2), y: y.toFixed(2) })
+  return (await request('/api/tex/inverse?' + query)).json()
 }
 
 /** Show a file or folder in the system file manager (Finder on macOS). */

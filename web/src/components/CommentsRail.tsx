@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { commentsMarkdown, type Comment } from '@/lib/api'
 import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, shareHighlight, type TextIndex } from '@/lib/anchors'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, getState, setState, useLeaf } from '@/lib/store'
+import { actions, getState, isPdf, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { CommentCard, Composer, type Placement } from './CommentCard'
 
@@ -300,6 +300,10 @@ export function SelectionCommentButton({ path, article }: { path: string; articl
 
 /** Start a draft from the current selection, or on the whole document when nothing is selected. */
 export function startComment(path: string, root: HTMLElement | null) {
+  if (isPdf(path)) {
+    toast('PDFs take no comments. Comment on the source beside it.')
+    return
+  }
   const live = !!selectionIn(root)
   const anchor = live ? selectionAnchor(root) : null
   if (live && !anchor) {

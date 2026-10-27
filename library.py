@@ -4,7 +4,7 @@ import secrets
 from groups import COLORS, apply_group_action, assign_tabs, open_group
 
 
-TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log'}
+DOCUMENT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.tex', '.bib', '.pdf'}
 
 
 def resolve_collection(data, reference):
@@ -58,8 +58,8 @@ def document_paths(paths, must_exist=True):
     result = []
     for raw in paths:
         path = Path(raw).expanduser().resolve(strict=must_exist)
-        if must_exist and (not path.is_file() or path.suffix.lower() not in TEXT_EXTENSIONS):
-            raise ValueError('Collections accept supported text documents only.')
+        if must_exist and (not path.is_file() or path.suffix.lower() not in DOCUMENT_EXTENSIONS):
+            raise ValueError('Collections accept supported documents only.')
         if str(path) not in result:
             result.append(str(path))
     return result

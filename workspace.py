@@ -9,7 +9,9 @@ from library import apply_collection_action
 from comments import apply_comment_action
 from groups import apply_group_action, assign_tabs, group_tabs, resolve_group
 
-TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log'}
+TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.tex', '.bib'}
+# Documents a tab can show: text, plus PDFs, which are read-only and take no comments.
+DOCUMENT_EXTENSIONS = TEXT_EXTENSIONS | {'.pdf'}
 # Where a split places its target document: the layout, and the target's pane index.
 SPLIT_SIDES = {'left': ('columns', 0), 'right': ('columns', 1), 'up': ('rows', 0), 'down': ('rows', 1)}
 
@@ -22,11 +24,18 @@ def empty_workspace():
             'editing': {}, 'reader': {'fontSize': 16, 'width': 'normal', 'font': 'sans'}, 'split': None, 'pins': []}
 
 
+def is_pdf(path):
+    """PDFs are read-only documents; a split keeps one beside the source it was built from."""
+    return isinstance(path, str) and path.lower().endswith('.pdf')
+
+
 def normalize_split(split, tabs, active):
     """Keep two distinct open documents side by side, the focused pane always showing the active tab.
 
     Focusing the other pane's document moves focus there; focusing any other tab replaces the
-    focused pane's document. Closing either pane's document ends the split.
+    focused pane's document, except that a PDF beside a text document stays put: a text tab then
+    replaces the text pane, so a compiled paper stays open beside the source being read.
+    Closing either pane's document ends the split.
     """
     if not isinstance(split, dict) or active is None:
         return None
@@ -35,7 +44,7 @@ def normalize_split(split, tabs, active):
         return None
     panes = list(panes)
     focus = split.get('focus') if split.get('focus') in (0, 1) else 0
-    if active == panes[1 - focus]:
+    if active == panes[1 - focus] or (is_pdf(panes[focus]) and not is_pdf(active) and not is_pdf(panes[1 - focus])):
         focus = 1 - focus
     panes[focus] = active
     if panes[0] == panes[1] or any(pane not in tabs for pane in panes):
@@ -82,12 +91,17 @@ def normalize_view(view):
     return result
 
 
+def remember_recent(data, path):
+    """Put a shown document first in the recent list; entries whose files are gone drop out."""
+    data['recentFiles'] = [path] + [p for p in data['recentFiles'] if p != path and os.path.exists(p)][:29]
+
+
 def open_document(data, path, command):
     """Open a supported text document as a tab and record its group, provenance, and collection."""
     resolved = Path(path).expanduser().resolve(strict=True)
     path = str(resolved)
-    if not resolved.is_file() or resolved.suffix.lower() not in TEXT_EXTENSIONS:
-        raise ValueError('Choose a supported text document.')
+    if not resolved.is_file() or resolved.suffix.lower() not in DOCUMENT_EXTENSIONS:
+        raise ValueError('Choose a supported document.')
     if path not in data['files']:
         data['files'].append(path)
     if path not in [tab['path'] for tab in data['tabs']]:
@@ -101,7 +115,7 @@ def open_document(data, path, command):
         data['sources'][path] = {key: source[key] for key in ('kind', 'server', 'board', 'file', 'version', 'fetchedAt', 'pinned', 'digest') if key in source}
     if command.get('collection'):
         apply_collection_action(data, {'action': 'collection-add', 'collection': command['collection'], 'paths': [path]})
-    data['recentFiles'] = [path] + [p for p in data['recentFiles'] if p != path][:29]
+    remember_recent(data, path)
     return path
 
 
@@ -109,8 +123,8 @@ def pin_document(data, path, index=None):
     """Pin a supported text document, or move an existing pin, without opening it."""
     resolved = Path(path).expanduser().resolve(strict=True)
     path = str(resolved)
-    if not resolved.is_file() or resolved.suffix.lower() not in TEXT_EXTENSIONS:
-        raise ValueError('Pin a supported text document.')
+    if not resolved.is_file() or resolved.suffix.lower() not in DOCUMENT_EXTENSIONS:
+        raise ValueError('Pin a supported document.')
     pins = [p for p in data['pins'] if p != path]
     if index is None:
         index = len(pins) if path not in data['pins'] else data['pins'].index(path)
@@ -166,6 +180,7 @@ class Workspace:
                 raise ValueError('Unsupported workspace version. Saved state was not changed.')
             self.data.update(loaded)
             self.data.update(normalize_view(loaded))
+            self.data['recentFiles'] = [p for p in self.data['recentFiles'] if isinstance(p, str) and os.path.exists(p)]
             pins = self.data['pins'] if isinstance(self.data['pins'], list) else []
             self.data['pins'] = list(dict.fromkeys(p for p in pins if isinstance(p, str) and p.startswith('/')))
 
@@ -219,7 +234,7 @@ class Workspace:
         group_tabs(data)
         if data['active'] and data['active'] != self.data['active']:
             path = data['active']
-            data['recentFiles'] = [path] + [p for p in data['recentFiles'] if p != path][:29]
+            remember_recent(data, path)
         self.commit(data)
         return True
 
@@ -388,5 +403,8 @@ class Workspace:
         if command.get('origin') == 'agent' and not command.get('replace'):
             keep_in_view(self.data, data, set(editing), command)
             data.update(normalize_view(data))
+        # Every document shown counts as recent, however it was reached; closing a tab only reveals a neighbour.
+        if data['active'] and data['active'] != self.data['active'] and action != 'close-tab':
+            remember_recent(data, data['active'])
         self.commit(data)
         return copy.deepcopy(self.data)

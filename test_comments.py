@@ -40,6 +40,16 @@ class CommentTests(unittest.TestCase):
         self.assertEqual(result[0]['location']['state'], 'detached')
         self.assertIn('marked resolved: resolved', markdown_comments(result))
 
+    def test_latex_sources_take_comments_on_source_lines(self):
+        """A .tex file is a supported document and its quotes locate source lines."""
+        tex = Path(self.temp.name) / 'intro.tex'
+        tex.write_text('\\section{Intro}\n\nWe study \\emph{collusion}.\n')
+        self.w.action({'action': 'comment-add', 'path': str(tex), 'body': 'Cite this',
+                       'anchor': {'quote': 'We study \\emph{collusion}.'}, 'author': 'you'})
+        thread = next(t for t in list_comments(self.w.data) if t['path'] == str(tex.resolve()))
+        self.assertEqual(thread['location']['state'], 'attached')
+        self.assertEqual(thread['location']['line'], 3)
+
     def test_locations_track_source_lines_and_ambiguity(self):
         """Rendered quotes map to source lines and duplicate matches never guess."""
         thread = self.w.data['comments'][0]

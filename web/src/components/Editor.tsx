@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react'
 import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, LanguageDescription, syntaxHighlighting } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search'
-import { EditorState, RangeSetBuilder, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state'
 import {
   Decoration,
   drawSelection,
@@ -21,6 +21,7 @@ import {
 import { tags } from '@lezer/highlight'
 import { saveDraft, setDraftText } from '@/lib/drafts'
 import { isMarkdown } from '@/lib/markdown'
+import { isTex, reportPosition, takeLine } from '@/lib/tex'
 import { getState } from '@/lib/store'
 import { isConflictBase, isConflictEnd, isConflictSplit, isConflictStart } from '@/lib/versions'
 import type { MarkdownConfig } from '@lezer/markdown'
@@ -270,16 +271,37 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) flush(update.view)
+        // A live PDF follows the cursor in a LaTeX source.
+        if (isTex(path) && update.view.hasFocus && (update.selectionSet || update.focusChanged))
+          reportPosition(path, update.state.doc.lineAt(update.state.selection.main.head).number)
       }),
     ]
-    if (isMarkdown(path)) extensions.push(markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [frontMatter] }))
+    // Other sources (LaTeX, YAML, JSON) load their language lazily once the editor is open.
+    const language = new Compartment()
+    const other = isMarkdown(path) ? null : LanguageDescription.matchFilename(languages, path)
+    extensions.push(language.of(isMarkdown(path) ? markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [frontMatter] }) : []))
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({ doc: getState().drafts[path]?.text ?? '', extensions }),
     })
+    other?.load().then((support) => {
+      if (view.current === editor) editor.dispatch({ effects: language.reconfigure(support) })
+    })
     view.current = editor
     editor.focus()
+    // A jump from the PDF or an error list puts the cursor on that line.
+    const goto = () => {
+      const line = takeLine(path)
+      if (!line) return
+      const at = editor.state.doc.line(Math.min(Math.max(line, 1), editor.state.doc.lines)).from
+      editor.dispatch({ selection: { anchor: at }, effects: EditorView.scrollIntoView(at, { y: 'center' }) })
+      editor.focus()
+    }
+    const onGoto = (event: Event) => (event as CustomEvent<string>).detail === path && goto()
+    window.addEventListener('leaf:goto-line', onGoto)
+    goto()
     return () => {
+      window.removeEventListener('leaf:goto-line', onGoto)
       flush(editor)
       editor.destroy()
       view.current = null

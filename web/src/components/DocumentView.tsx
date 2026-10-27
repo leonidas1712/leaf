@@ -5,8 +5,11 @@ import { fetchDocumentImage, fetchFile, type Entry, type ReaderPrefs } from '@/l
 import { cn } from '@/lib/utils'
 import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdown, resolveRelative } from '@/lib/markdown'
 import { renderDiagram } from '@/lib/mermaid'
-import { actions, reader, scrolls, setState, TEXT_FILE, useLeaf, type Heading } from '@/lib/store'
+import { actions, currentSplit, getState, isPdf, reader, scrolls, setState, DOCUMENT_FILE, useLeaf, type Heading } from '@/lib/store'
 import { diskChanged } from '@/lib/drafts'
+import { shareHighlight } from '@/lib/anchors'
+import { isTex, reportPosition, takeLine } from '@/lib/tex'
+import { TexBar } from './TexControls'
 import { EditBar } from './EditBar'
 import { FindBar } from './FindBar'
 import { Editor } from './Editor'
@@ -27,7 +30,65 @@ interface Failure {
   message: string
 }
 
-const CODE_LANGUAGE: Record<string, string> = { json: 'json', yaml: 'yaml', yml: 'yaml', csv: 'plaintext', log: 'plaintext', txt: 'plaintext' }
+/** The source line being read: a third of the way down the pane, where jumps place lines too. */
+function lineInView(code: HTMLElement, viewport: HTMLElement): number | null {
+  const view = viewport.getBoundingClientRect()
+  const box = code.getBoundingClientRect()
+  const y = Math.max(view.top + view.height / 3, box.top + 2)
+  if (y > Math.min(box.bottom, view.bottom)) return null
+  const x = box.left + 24
+  const caret = document.caretPositionFromPoint?.(x, y)
+  const node = caret ? caret.offsetNode : document.caretRangeFromPoint?.(x, y)?.startContainer
+  const offset = caret ? caret.offset : (document.caretRangeFromPoint?.(x, y)?.startOffset ?? 0)
+  if (!node || !code.contains(node)) return null
+  const before = document.createRange()
+  before.setStart(code, 0)
+  before.setEnd(node, offset)
+  return before.toString().split('\n').length
+}
+
+/** A range over one source line of a code block. */
+function rangeOfLine(code: HTMLElement, line: number): Range | null {
+  const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT)
+  let current = 1
+  let start: [Text, number] | null = null
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    for (let i = 0; i < node.data.length; i++) {
+      if (current === line && !start) start = [node, i]
+      if (node.data[i] === '\n') {
+        if (start) {
+          const range = document.createRange()
+          range.setStart(start[0], start[1])
+          range.setEnd(node, i)
+          return range
+        }
+        current++
+      }
+    }
+  }
+  if (!start) return null
+  const range = document.createRange()
+  range.setStart(start[0], start[1])
+  range.setEndAfter(code.lastChild ?? code)
+  return range
+}
+
+const lineFlash = Symbol('line flash')
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+
+/** Scroll a source line to a third of the way down the pane and flash it. */
+function showLine(code: HTMLElement, viewport: HTMLElement, line: number) {
+  const range = rangeOfLine(code, line)
+  if (!range) return
+  const rect = range.getBoundingClientRect()
+  const view = viewport.getBoundingClientRect()
+  viewport.scrollTo({ top: viewport.scrollTop + rect.top - view.top - view.height / 3, behavior: 'instant' })
+  shareHighlight('leaf-line', lineFlash, [range])
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => shareHighlight('leaf-line', lineFlash, []), 1600)
+}
+
+const CODE_LANGUAGE: Record<string, string> = { json: 'json', yaml: 'yaml', yml: 'yaml', csv: 'plaintext', log: 'plaintext', txt: 'plaintext', tex: 'latex', bib: 'latex' }
 /**
  * The reading surface. Rendering is sequenced: a newer request always wins, scroll restores
  * instantly only after diagrams and images have laid out, and the sync loop is held off while
@@ -284,7 +345,56 @@ export function DocumentView({
     else viewport.current.scrollTo({ top: scrolls.get(rendered.path) ?? 0, behavior: 'instant' })
     displayed.current = rendered.path
     setBusy(false)
+    const code = node.querySelector<HTMLElement>('pre > code')
+    // An open editor takes jumps to its own lines.
+    const line = isTex(rendered.path) && !getState().editModes[rendered.path] ? takeLine(rendered.path) : undefined
+    if (code && line) showLine(code, viewport.current, line)
   }, [mounts, rendered, setBusy])
+
+  // A LaTeX source in the focused pane tells a live PDF which line it shows, so the PDF can follow.
+  // With an editor open, its cursor does that instead.
+  const editing = useLeaf((s) => !!s.editModes[path])
+  // The source beside a PDF reports even without focus: the PDF pane is often the focused one.
+  const besidePdf = useLeaf((s) => {
+    const split = s.workspace ? currentSplit(s.workspace) : null
+    return !!split && split.panes.includes(path) && split.panes.some((pane) => pane !== path && isPdf(pane))
+  })
+  useEffect(() => {
+    const node = viewport.current
+    if (!node || !(focused || besidePdf) || !isTex(path) || editing || rendered?.path !== path) return
+    let frame = 0
+    const report = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const code = article.current?.querySelector<HTMLElement>('pre > code')
+        if (code && displayed.current === path) reportPosition(path, lineInView(code, node))
+      })
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onScroll = () => {
+      clearTimeout(timer)
+      timer = setTimeout(report, 120)
+    }
+    report()
+    node.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
+      node.removeEventListener('scroll', onScroll)
+    }
+  }, [focused, besidePdf, path, editing, rendered])
+
+  // A jump from the PDF or an error list to a line of this document, when it is already shown.
+  useEffect(() => {
+    const onGoto = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== path || displayed.current !== path || editing) return
+      const code = article.current?.querySelector<HTMLElement>('pre > code')
+      const line = takeLine(path)
+      if (code && line && viewport.current) showLine(code, viewport.current, line)
+    }
+    window.addEventListener('leaf:goto-line', onGoto)
+    return () => window.removeEventListener('leaf:goto-line', onGoto)
+  }, [path, editing])
 
   useEffect(() => () => urls.current.forEach(URL.revokeObjectURL), [])
 
@@ -314,7 +424,7 @@ export function DocumentView({
     } else {
       const [relative, hash] = href.split('#')
       const target = resolveRelative(relative, path)
-      if (!target || !TEXT_FILE.test(target)) {
+      if (!target || !DOCUMENT_FILE.test(target)) {
         setState({ status: 'Leaf opens linked text documents only.' })
         return
       }
@@ -368,6 +478,7 @@ export function DocumentView({
             style={{ maxWidth: prefs.width === 'full' ? 'none' : prefs.fontSize * (prefs.width === 'wide' ? 58 : 42) }}
           >
             <DocumentHeader path={path} stats={current?.stats} source={source} updatedAt={updatedAt} />
+            {isTex(path) && <TexBar path={path} />}
             {mode === 'edit' && draft && (
               <>
                 <EditBar path={path} />

@@ -48,6 +48,9 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 - GitHub-flavoured Markdown with callouts, task lists, and tables
 - Mermaid diagrams, themed and isolated, with zoom, fit, and source
 - Syntax highlighting with one-click copy
+- LaTeX (`.tex`, `.bib`) sources, highlighted and commentable like any document
+- Read-only PDFs that reload in place when rebuilt; split one beside its sources and it stays put as you change tabs
+- Live LaTeX preview: compiles on change into Leaf's own folder, follows the source you read, double-click the PDF to jump to the line, errors link to their lines; recompile with B and pause auto-compile any time (`leaf tex`)
 - YAML front matter shown as a properties block
 - Outline that follows your reading position
 - Light, dark, or system theme; sans or serif; adjustable size and line length
@@ -59,7 +62,8 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 - Nested collections that reference files anywhere, including Aboard boards
 - Chrome-style tab groups with colours, collapse, close, and reopen
 - Drag documents between folders, collections, groups, and tabs
-- ⌘K palette for documents, tabs, collections, and commands
+- ⌘K palette for documents, tabs, collections, and commands; `?` lists every shortcut
+- `[` and `]` step through tabs, wrapping within the current tab group
 - ⌘F find in the document, with every match highlighted
 - Path entry that completes from disk, so big repositories stay usable
 - One saved workspace shared by every browser window

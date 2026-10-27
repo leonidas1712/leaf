@@ -10,21 +10,27 @@ import threading
 import time
 import webbrowser
 import fcntl
-from workspace import Workspace, TEXT_EXTENSIONS
+from workspace import Workspace, DOCUMENT_EXTENSIONS, TEXT_EXTENSIONS
 from comments import list_comments, markdown_comments
 from reveal import reveal_path
 from editing import Editing, ACTIONS
 from versions import Changed
+from tex import TexProjects
 import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 BASE = Path(__file__).resolve().parent
+# The PDF worker is a module script; browsers refuse it without a JavaScript type.
+mimetypes.add_type('text/javascript', '.mjs')
 RUNTIME = Path(os.environ.get('LEAF_STATE_DIR', str(Path.home() / '.local/state/leaf-reader')))
 WORKSPACE = None
 SERVER_INSTANCE = secrets.token_urlsafe(12)
 FILE_IDS = {}
-EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'}
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'}
+EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
+# Compiled papers run larger than text; everything else keeps the 10 MB reading limit.
+PDF_LIMIT = 100 * 1024 * 1024
 SKIP = {'node_modules', 'vendor', 'venv', '__pycache__'}
 TOKEN = secrets.token_urlsafe(32)
 LOCK = threading.RLock()
@@ -34,6 +40,7 @@ FILES = {}
 ROOTS = {}
 COMMENT_REVISIONS = set()
 EDITOR = None
+TEX = None
 
 
 def editor():
@@ -78,7 +85,7 @@ def document_image(document_id, source):
         raise ValueError('Document grant is unavailable.')
     folder = document.parent
     requested = Path(source)
-    if not requested.is_absolute() or requested.suffix.lower() not in EXTENSIONS - TEXT_EXTENSIONS:
+    if not requested.is_absolute() or requested.suffix.lower() not in IMAGE_EXTENSIONS:
         raise ValueError('Choose an image beside the document.')
     try:
         relative = requested.relative_to(folder)
@@ -131,7 +138,7 @@ def complete_paths(prefix):
             if entry.name.startswith('.') or entry.name in SKIP or not entry.name.casefold().startswith(fragment.casefold()) or entry.is_symlink():
                 continue
             is_directory = entry.is_dir(follow_symlinks=False)
-            if is_directory or (entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in TEXT_EXTENSIONS):
+            if is_directory or (entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in DOCUMENT_EXTENSIONS):
                 results.append({'path': str(Path(entry.path).resolve()), 'kind': 'dir' if is_directory else 'file'})
             if len(results) == 50:
                 break
@@ -174,6 +181,37 @@ def document_stamps():
         except OSError:
             stamps[str(path)] = None
     return stamps
+
+
+def tex_action(data):
+    """Enable, disable, build, or switch auto-compile for a LaTeX project; optionally wait for the build."""
+    action = data.get('action')
+    path = data.get('path')
+    if path is not None and not isinstance(path, str):
+        raise ValueError('Path must be text.')
+    wait = data.get('wait', 0)
+    if isinstance(wait, bool) or not isinstance(wait, (int, float)) or not 0 <= wait <= 600:
+        raise ValueError('Wait must be 0 to 600 seconds.')
+    if action == 'enable':
+        if not path:
+            raise ValueError('Name the project folder or a .tex file in it.')
+        options = {name: data.get(key) for key, name in (('main', 'main'), ('engine', 'engine'), ('bin', 'bin_dir')) if data.get(key)}
+        if 'auto' in data:
+            options['auto'] = bool(data['auto'])
+        status, ticket = TEX.enable(path, **options)
+        project = TEX.find(status['root'])
+    elif action == 'build':
+        project, ticket = TEX.request(path)
+    elif action == 'auto':
+        return {'project': TEX.set_auto(path, data.get('auto'))}
+    elif action == 'disable':
+        return TEX.disable(path)
+    else:
+        raise ValueError('Unknown LaTeX action.')
+    if not wait:
+        return {'project': project.status(), 'finished': False}
+    status, finished = TEX.wait(project, ticket, wait)
+    return {'project': status, 'finished': finished}
 
 
 def live_sessions():
@@ -255,7 +293,9 @@ class Handler(BaseHTTPRequestHandler):
                 path = FILES.get(query.get('id', [''])[0])
                 if not path or path.resolve() != path or not path.is_file():
                     raise ValueError('File grant is unavailable.')
-                if path.stat().st_size > 10 * 1024 * 1024:
+                if path.suffix.lower() == '.pdf' and path.stat().st_size > PDF_LIMIT:
+                    raise ValueError('PDF exceeds the 100 MB reading limit.')
+                if path.suffix.lower() != '.pdf' and path.stat().st_size > 10 * 1024 * 1024:
                     raise ValueError('File exceeds the 10 MB reading limit.')
                 with LOCK:
                     raw = path.read_bytes()
@@ -271,6 +311,15 @@ class Handler(BaseHTTPRequestHandler):
                 if path.stat().st_size > 10 * 1024 * 1024:
                     raise ValueError('Image exceeds the 10 MB reading limit.')
                 self.respond(path.read_bytes(), content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+            elif url.path == '/api/tex':
+                self.respond({'projects': TEX.statuses()})
+            elif url.path == '/api/tex/forward':
+                line = query.get('line', [''])[0]
+                self.respond(TEX.forward(query.get('path', [''])[0], int(line) if line else None))
+            elif url.path == '/api/tex/inverse':
+                self.respond(TEX.inverse(query.get('pdf', [''])[0], query.get('page', ['0'])[0], query.get('x', ['0'])[0], query.get('y', ['0'])[0]))
+            elif url.path == '/api/tex/page':
+                self.respond(TEX.page_sources(query.get('path', [''])[0], query.get('page', ['0'])[0]))
             elif url.path == '/api/library':
                 root = ROOTS.get(query.get('id', [''])[0])
                 if not root:
@@ -309,12 +358,18 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Request must be a JSON object.')
+            if self.path == '/api/tex':
+                # Outside the workspace lock: waiting for a build must not stall readers.
+                self.respond(tex_action(data))
+                return
             with LOCK:
                 if self.path == '/api/stop':
                     self.respond({'status': 'stopping'})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                 elif self.path == '/api/reveal':
-                    self.respond(reveal_path(data.get('path'), WORKSPACE.data, FILES.values()))
+                    # Compiled LaTeX PDFs are known to Leaf even before a tab shows them.
+                    compiled = [project['pdf'] for project in TEX.statuses() if project['pdfExists']]
+                    self.respond(reveal_path(data.get('path'), dict(WORKSPACE.data, files=WORKSPACE.data['files'] + compiled), FILES.values()))
                 elif self.path == '/api/save':
                     self.respond(editor().save(data))
                 elif self.path == '/api/action' and data.get('action') in ACTIONS:
@@ -339,7 +394,7 @@ class Handler(BaseHTTPRequestHandler):
                     if 'view' in data and same_instance:
                         accepted = WORKSPACE.sync(revision, data['view'], view_only=data.get('viewOnly', False))
                     SESSIONS[session] = {'seen': time.time(), 'state': dict(data.get('state', {}), revision=WORKSPACE.data['revision'] if accepted else revision)}
-                    result = {'revision': WORKSPACE.data['revision'], 'instance': SERVER_INSTANCE, 'stamps': document_stamps()}
+                    result = {'revision': WORKSPACE.data['revision'], 'instance': SERVER_INSTANCE, 'stamps': document_stamps(), 'tex': TEX.statuses()}
                     if not same_instance or (not accepted and revision != WORKSPACE.data['revision']):
                         if same_instance and revision >= 0 and all(r in COMMENT_REVISIONS for r in range(revision + 1, WORKSPACE.data['revision'] + 1)):
                             result['workspace'] = WORKSPACE.data
@@ -397,7 +452,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     """Start the local bridge and publish its credentials in a private runtime file."""
-    global TOKEN, WORKSPACE
+    global TOKEN, WORKSPACE, TEX
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=18764)
     parser.add_argument('--open', action='store_true', help='Open the reader in the default browser')
@@ -418,6 +473,8 @@ def main():
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, 'w') as stream:
         json.dump({'url': f'http://127.0.0.1:{args.port}', 'token': TOKEN, 'pid': os.getpid()}, stream)
+    TEX = TexProjects(RUNTIME)
+    TEX.start()
     with LOCK:
         editor().presence()
         editor().observe()
@@ -432,6 +489,7 @@ def main():
     finally:
         watch_stop.set()
         watcher.join(timeout=5)
+        TEX.close()
         server.server_close()
         lock.close()
 

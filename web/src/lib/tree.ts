@@ -1,6 +1,6 @@
 /* Build the sidebar tree from granted entries. Paths are absolute; folders are workspace roots. */
 import type { Entry } from './api'
-import { TEXT_FILE } from './store'
+import { DOCUMENT_FILE } from './store'
 
 export interface TreeNode {
   name: string
@@ -16,7 +16,7 @@ export function buildTree(root: string, entries: Map<string, Entry>, query: stri
   const needle = query.trim().toLowerCase()
   const prefix = root + '/'
   for (const path of entries.keys()) {
-    if (!path.startsWith(prefix) || !TEXT_FILE.test(path)) continue
+    if (!path.startsWith(prefix) || !DOCUMENT_FILE.test(path)) continue
     const relative = path.slice(prefix.length)
     if (needle && !relative.toLowerCase().includes(needle)) continue
     const parts = relative.split('/')

@@ -1,6 +1,6 @@
 ---
 name: leaf
-description: Operate the local Leaf document reader through its CLI. Use when asked to open documents or folders in Leaf, manage reading tabs, address document comments, change preferences, inspect saved state, or start and stop the reader.
+description: Operate the local Leaf document reader through its CLI. Use when asked to open documents or folders in Leaf, manage reading tabs, address document comments, compile LaTeX with a live PDF preview, change preferences, inspect saved state, or start and stop the reader.
 ---
 
 # Leaf
@@ -38,7 +38,8 @@ Do not expose the private connection token or commit runtime state, document con
 Explicit editing commands can modify known local documents. Collection and tab actions never move or delete source files.
 
 Use `leaf split PATH --side right --json` to show a document beside the active one. Sides are left, right, up, and down.
-The focused pane shows `active`. Heading and scroll commands act on it. Closing either pane's tab ends the split. Use `leaf unsplit --json` to return to one pane.
+The focused pane shows `active`, except that a PDF beside a text document stays put while text tabs change. Heading and scroll commands act on it.
+PDFs open read-only and take no comments; put comments on the `.tex` or Markdown source. Closing either pane's tab ends the split. Use `leaf unsplit --json` to return to one pane.
 Your commands never hide a document the user is editing. Leaf shows yours in the other pane, and `active` stays theirs.
 Use `open --background` to add a tab without showing it. Use `--replace` only when the user asks you to take over their view.
 
@@ -85,6 +86,16 @@ A `changed` location identifies replacement text by its old surroundings. Inspec
 
 Use `leaf reveal PATH --json` to show a known document or folder in the system file manager.
 This command does not change tabs or workspace state. Unknown or missing paths return an error.
+
+## Live LaTeX builds
+
+`leaf tex enable PATH --json` registers a LaTeX project (folder, main file, or any file it inputs) and builds it into Leaf's state folder.
+It is opt-in per project because building runs the project's code. The project's own files and PDF are never written.
+`leaf tex status --json` reports `state`, `auto`, and `lastBuild.errors` with absolute paths and lines. `leaf tex build --json` recompiles, waits, and exits 1 on failure.
+Before sweeping edits, note `auto`; if on, run `leaf tex auto off`, edit, `leaf tex build`, fix errors, then `leaf tex auto on`. Never turn it on if the user had it off.
+`leaf tex path` prints the compiled PDF's path (it lives in Leaf's state folder, replaced after each successful build); `leaf reveal "$(leaf tex path)"` shows it in Finder.
+`leaf tex preview` shows the PDF beside the active document. `leaf tex where FILE:LINE` and `leaf tex page N` map between source lines and PDF pages.
+Read the Live LaTeX section of `leaf guide` for detection, batching, and states.
 
 ## Native editing with history
 

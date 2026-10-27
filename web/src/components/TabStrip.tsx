@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Command, FileText, PanelLeft, PanelRight, X } from 'lucide-react'
+import { CircleHelp, Command, FileText, PanelLeft, PanelRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   ContextMenu,
@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
 import { closeEditor, isDirty, openEditor } from '@/lib/drafts'
-import { actions, currentSplit, setState, useLeaf } from '@/lib/store'
+import { actions, currentSplit, isPdf, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { PinMenuItem } from './pins'
 import { GroupMenuItems, groupStyle } from './groups'
@@ -301,7 +301,7 @@ export function TabStrip() {
       </div>
       {workspace && (
         <div className="mb-1.5 flex shrink-0 items-center gap-1 self-center pl-2">
-          {active && (
+          {active && !isPdf(active) && (
             <ToggleGroup
               type="single"
               size="sm"
@@ -334,6 +334,7 @@ export function TabStrip() {
           )}
           <ReaderSettings />
           {active && icon(outlineOpen ? 'Hide outline' : 'Show outline', <PanelRight />, () => setState({ outlineOpen: !outlineOpen }), '⌘.')}
+          {icon('Help and keyboard shortcuts', <CircleHelp />, () => setState({ shortcutsOpen: true }), '?')}
           {icon('Command palette', <Command />, () => setState({ paletteOpen: true }), '⌘K')}
         </div>
       )}

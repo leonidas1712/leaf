@@ -2,13 +2,13 @@ import { FileText, FolderPlus, FilePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, setState, TEXT_FILE, useLeaf } from '@/lib/store'
+import { actions, setState, DOCUMENT_FILE, useLeaf } from '@/lib/store'
 import { LeafMark } from './LeafMark'
 
 /** No tab open: teach the two ways in (ask an agent, or open a path) and offer recent work. */
 export function EmptyState() {
   const workspace = useLeaf((s) => s.workspace)
-  const recent = (workspace?.recentFiles ?? []).filter((path) => TEXT_FILE.test(path)).slice(0, 6)
+  const recent = (workspace?.recentFiles ?? []).filter((path) => DOCUMENT_FILE.test(path)).slice(0, 6)
 
   return (
     <div className="flex min-h-0 flex-1 overflow-y-auto bg-paper">

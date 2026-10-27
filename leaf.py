@@ -150,6 +150,7 @@ def make_parser():
         'unsplit': 'Return to one reading pane, keeping a shown document (defaults to active)',
         'pins': 'List pinned documents', 'pin': 'Pin a document to the sidebar, or move a pin with --index',
         'unpin': 'Remove a document from the pinned list',
+        'tex': 'Live LaTeX builds: enable, build, auto on/off, preview, status, where, page',
     }
     for name, description in descriptions.items():
         child = commands.add_parser(name, help=description, description=description)
@@ -226,6 +227,9 @@ def make_parser():
         if name in ('comments', 'comment'):
             from comments_cli import configure
             configure(child, name)
+        if name == 'tex':
+            from tex_cli import configure
+            configure(child)
         if name == 'reader':
             child.add_argument('--font-size', type=float, dest='fontSize')
             child.add_argument('--width', choices=['normal', 'wide', 'full'])
@@ -294,6 +298,10 @@ def main():
         return
     if args.action in ('comments', 'comment'):
         from comments_cli import run
+        run(args, sys.modules[__name__])
+        return
+    if args.action == 'tex':
+        from tex_cli import run
         run(args, sys.modules[__name__])
         return
     args.paths = [args.paths] if isinstance(args.paths, str) else (args.paths or [])

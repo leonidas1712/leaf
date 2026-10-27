@@ -24,7 +24,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { REVEAL_LABEL, type Entry, type TabGroup, type Workspace } from '@/lib/api'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, setState, TEXT_FILE, toggleExpanded, useLeaf } from '@/lib/store'
+import { actions, setState, DOCUMENT_FILE, toggleExpanded, useLeaf } from '@/lib/store'
 import { buildTree, type TreeNode } from '@/lib/tree'
 import { cn } from '@/lib/utils'
 import { CollectionsSection } from './collections'
@@ -248,6 +248,7 @@ export function Sidebar() {
   const width = useLeaf((s) => s.sidebarWidth)
   const missing = useLeaf((s) => s.missing)
   const connection = useLeaf((s) => s.connection)
+  const texProjects = useLeaf((s) => s.tex)
   const filter = useRef<HTMLInputElement>(null)
   const [resizing, setResizing] = useState(false)
 
@@ -256,9 +257,13 @@ export function Sidebar() {
   const loose = workspace.files.filter(
     (path) => !folders.some((folder) => path.startsWith(folder + '/')) && (!search || path.toLowerCase().includes(search.toLowerCase())),
   )
-  const recent = [...workspace.recentFiles.slice(0, 6), ...workspace.recentFolders.slice(0, 3)].filter(
-    (path) => !workspace.tabs.some((tab) => tab.path === path) && !folders.includes(path),
-  )
+  // Recently shown documents, open tabs included (switching among many tabs is when this helps most),
+  // then recently added folders that are no longer in the sidebar.
+  const openTabs = new Set(workspace.tabs.map((tab) => tab.path))
+  const recent = [
+    ...workspace.recentFiles.filter((path) => path !== workspace.active).slice(0, 8),
+    ...workspace.recentFolders.filter((path) => !folders.includes(path)).slice(0, 3),
+  ]
   const missingFor = (path: string) => missing.find((item) => item.path === path)?.error
 
   const startResize = (event: React.PointerEvent) => {
@@ -347,6 +352,41 @@ export function Sidebar() {
             )}
           </Section>
         )}
+        {!search && recent.length > 0 && (
+          <Section title="Recent">
+            {recent.map((path) => {
+              const folder = !DOCUMENT_FILE.test(path)
+              const open = openTabs.has(path)
+              return (
+                <button
+                  key={path}
+                  type="button"
+                  title={`${displayPath(path)}${folder ? '' : open ? ' · open tab' : ' · closed'}`}
+                  onClick={() => (folder ? actions.openFolder(path) : actions.open(path))}
+                  draggable={!folder}
+                  onDragStart={(event) => !folder && startDrag(event, path)}
+                  className={cn(
+                    'flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] transition-colors hover:bg-accent hover:text-ink',
+                    open ? 'text-ink-soft' : 'text-ink-muted',
+                  )}
+                >
+                  {folder ? (
+                    <Folder className="size-3.5 shrink-0 text-ink-faint" />
+                  ) : open ? (
+                    <FileText className="size-3.5 shrink-0 text-ink-faint" />
+                  ) : (
+                    <Clock className="size-3.5 shrink-0 text-ink-faint" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{basename(path)}</span>
+                  {/* The folder takes at most 40% of the row, so the file name stays readable in a narrow sidebar. */}
+                  <span className="max-w-[40%] shrink-0 truncate pl-2 text-[11px] text-ink-faint">
+                    {texProjects.some((project) => project.pdf === path) ? 'live PDF' : basename(path.slice(0, path.lastIndexOf('/')))}
+                  </span>
+                </button>
+              )
+            })}
+          </Section>
+        )}
         {folders.length > 0 && (
           <Section title="Folders">
             {folders.map((root) => (
@@ -400,28 +440,6 @@ export function Sidebar() {
           </Section>
         )}
 
-        {!search && recent.length > 0 && (
-          <Section title="Recent">
-            {recent.map((path) => {
-              const folder = !TEXT_FILE.test(path)
-              return (
-                <button
-                  key={path}
-                  type="button"
-                  title={displayPath(path)}
-                  onClick={() => (folder ? actions.openFolder(path) : actions.open(path))}
-                  draggable={!folder}
-                  onDragStart={(event) => !folder && startDrag(event, path)}
-                  className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-ink-muted transition-colors hover:bg-accent hover:text-ink"
-                >
-                  {folder ? <Folder className="size-3.5 shrink-0 text-ink-faint" /> : <Clock className="size-3.5 shrink-0 text-ink-faint" />}
-                  <span className="truncate">{basename(path)}</span>
-                </button>
-              )
-            })}
-          </Section>
-        )}
-
         {!folders.length && !loose.length && (
           <p className="mx-2 mt-6 text-[12.5px] leading-relaxed text-ink-muted">
             Folders and files you open appear here. Ask an agent to run{' '}
@@ -433,11 +451,21 @@ export function Sidebar() {
       <div className="flex h-9 shrink-0 items-center gap-2 border-t border-rule px-4 text-[11.5px] text-ink-muted">
         <span
           className={cn(
-            'size-1.5 rounded-full',
+            'size-1.5 shrink-0 rounded-full',
             connection === 'live' ? 'bg-leaf' : connection === 'connecting' ? 'animate-pulse bg-ink-faint' : 'bg-destructive',
           )}
         />
-        {connection === 'live' ? 'Saved · agents connected' : connection === 'connecting' ? 'Connecting…' : 'Offline · changes not saved'}
+        <span className="min-w-0 truncate whitespace-nowrap">
+          {connection === 'live' ? 'Saved · agents connected' : connection === 'connecting' ? 'Connecting…' : 'Offline · changes not saved'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setState({ shortcutsOpen: true })}
+          className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-ink"
+        >
+          Shortcuts
+          <Kbd>?</Kbd>
+        </button>
       </div>
 
       <div

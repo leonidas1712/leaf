@@ -29,11 +29,14 @@ import {
   type Split,
   type SplitSide,
   type SyncResponse,
+  type TexProject,
   type Theme,
   type Workspace,
 } from './api'
 
-export const TEXT_FILE = /\.(md|markdown|txt|json|ya?ml|csv|log)$/i
+/** Files a tab can show. PDFs among them are read-only and take no comments. */
+export const DOCUMENT_FILE = /\.(md|markdown|txt|json|ya?ml|csv|log|tex|bib|pdf)$/i
+export const isPdf = (path: string) => /\.pdf$/i.test(path)
 
 export interface Heading {
   id: string
@@ -60,6 +63,7 @@ export interface LeafState {
   draft: { path: string; anchor: CommentAnchor | null } | null
   sidebarOpen: boolean
   paletteOpen: boolean
+  shortcutsOpen: boolean
   /** Find in the focused pane: whether the bar is open, its text, and a counter that refocuses it. */
   findOpen: boolean
   findQuery: string
@@ -74,6 +78,8 @@ export interface LeafState {
   status: string
   /** Change markers for open documents; a new value means the file changed on disk. */
   stamps: Record<string, string | null>
+  /** LaTeX projects Leaf builds, refreshed with every sync. */
+  tex: TexProject[]
   /** Unsaved or in-progress edits per document, kept across tab switches. */
   drafts: Record<string, Draft>
   /** Documents shown in the editor ('edit') or editor beside preview ('split'); others read. */
@@ -113,6 +119,7 @@ let state: LeafState = {
   activeComment: null,
   draft: null,
   paletteOpen: false,
+  shortcutsOpen: false,
   findOpen: false,
   findQuery: '',
   findFocus: 0,
@@ -122,6 +129,7 @@ let state: LeafState = {
   headings: [],
   status: '',
   stamps: {},
+  tex: [],
   drafts: {},
   editModes: {},
   collapsedComments: readCollapsedComments(),
@@ -205,7 +213,7 @@ function view(ws: Workspace) {
 
 export function snapshot() {
   const ws = state.workspace
-  const documents = [...state.entries.keys()].filter((path) => TEXT_FILE.test(path))
+  const documents = [...state.entries.keys()].filter((path) => DOCUMENT_FILE.test(path))
   return {
     revision,
     session: readerSession,
@@ -301,6 +309,7 @@ async function syncOnce() {
   const response = await postJSON<SyncResponse>('/api/sync', request)
   instance = response.instance
   if (response.stamps && JSON.stringify(response.stamps) !== JSON.stringify(state.stamps)) setState({ stamps: response.stamps })
+  if (response.tex && JSON.stringify(response.tex) !== JSON.stringify(state.tex)) setState({ tex: response.tex })
   if (response.workspace) {
     hydrate(response as Hydration)
     revision = response.revision
@@ -566,14 +575,16 @@ const SPLIT_SIDES: Record<SplitSide, ['columns' | 'rows', 0 | 1]> = {
 
 /**
  * The split as the reader shows it, mirroring the server's rule so optimistic tab changes
- * render at once: the focused pane follows the active tab, and a closed pane ends the split.
+ * render at once: the focused pane follows the active tab, a PDF beside a text document stays
+ * put (the text pane takes the tab instead), and a closed pane ends the split.
  */
 export function currentSplit(ws: Workspace): Split | null {
   const split = ws.split
   if (!split || !ws.active) return null
   const panes = [...split.panes] as [string, string]
   let focus = split.focus
-  if (ws.active === panes[1 - focus]) focus = (1 - focus) as 0 | 1
+  if (ws.active === panes[1 - focus] || (isPdf(panes[focus]) && !isPdf(ws.active) && !isPdf(panes[1 - focus])))
+    focus = (1 - focus) as 0 | 1
   panes[focus] = ws.active
   const open = new Set(ws.tabs.map((tab) => tab.path))
   if (panes[0] === panes[1] || !panes.every((pane) => open.has(pane))) return null
@@ -592,12 +603,14 @@ function splitBeside(ws: Workspace, target: string, side: SplitSide): Workspace 
   return { ...ws, active: target, split: { panes, focus: index, layout, ratio: ws.split?.ratio ?? 0.5 } }
 }
 
-/** Cycle through tabs relative to the active one. */
+/** Cycle through tabs relative to the active one, wrapping within its group when it has one. */
 export function stepTab(delta: number) {
   const ws = state.workspace
   if (!ws?.tabs.length) return
-  const index = ws.tabs.findIndex((tab) => tab.path === ws.active)
-  const next = ws.tabs[(index + delta + ws.tabs.length) % ws.tabs.length]
+  const group = ws.tabs.find((tab) => tab.path === ws.active)?.group
+  const tabs = group ? ws.tabs.filter((tab) => tab.group === group) : ws.tabs
+  const index = tabs.findIndex((tab) => tab.path === ws.active)
+  const next = tabs[(index + delta + tabs.length) % tabs.length]
   if (next) actions.focus(next.path)
 }
 

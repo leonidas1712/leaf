@@ -227,3 +227,16 @@ The save request limit allows JSON escaping overhead; decoded text is limited to
 The service serializes its writes, rechecks disk immediately before replacement, and preserves file mode.
 Native file tools do not share this lock. An external write racing the final replacement remains possible.
 See AGENT-CONTROL.md for observation, retention, conservative overwrite checks, and recovery steps.
+
+## Live LaTeX builds
+
+All routes use the token, Host, and Origin checks. Build state lives in `tex.json` (registered projects) and `tex/<project>/` (output, `result.json`) in the state directory.
+
+- `GET /api/tex`: `{projects: [project]}`. Each project has `root`, `main`, `engine`, `bin`, `auto`, `state` (`idle`, `queued`, `building`, `ok`, `failed`, `outdated`), `outdated`, `changedFiles`, `pdf`, `pdfExists`, `synctex`, and `lastBuild` (`ok`, `seconds`, `errors`, `warnings`, `boxes` with `path`/`line`/`message`, their counts, `log`, `changedDuringBuild`).
+- `POST /api/tex`: `{action, path, ...}`. `enable` takes `main?`, `engine?`, `bin?`, `auto?`; `build` queues a build; `auto` takes `auto: bool`; `disable` unregisters. `enable` and `build` accept `wait` (seconds, at most 600) and then return `{project, finished}` after a build that started after the request. This route does not hold the workspace lock.
+- `GET /api/tex/forward?path=ABS&line=N`: `{pdf, page, x, y, width, height, path, line}` in PDF points from the page's top-left. Without `line`, the start of the file. A line with no output maps to the nearest one.
+- `GET /api/tex/inverse?pdf=ABS&page=N&x=&y=`: `{path, line, page}` for the smallest typeset line box holding the point, else the nearest.
+- `GET /api/tex/page?path=ABS&page=N`: `{pdf, page, sources: [{path, from, to}]}` in order of appearance.
+
+Sync responses carry `tex` (the same list as `GET /api/tex`) so readers update build status without polling.
+One worker thread polls registered sources each second, builds at most one project at a time, and serializes SyncTeX lookups with builds.

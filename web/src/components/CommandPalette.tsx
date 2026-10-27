@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, ClipboardCopy, Code2, Columns2, Copy, Download, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, ClipboardCopy, Keyboard, FileOutput, Pause, Play, Code2, Columns2, Copy, Download, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
 import { REVEAL_LABEL } from '@/lib/api'
 import { trail } from '@/lib/collections'
 import { exportComments } from './CommentsRail'
@@ -16,7 +16,8 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, currentSplit, getState, setState, TEXT_FILE, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, setState, DOCUMENT_FILE, stepTab, useLeaf } from '@/lib/store'
+import { projectFor, recompile, setAuto, showPreview } from '@/lib/tex'
 
 /**
  * Rank a path for a query: file-name substring beats path substring beats a subsequence of
@@ -46,6 +47,7 @@ export function CommandPalette() {
   const workspace = useLeaf((s) => s.workspace)
   const entries = useLeaf((s) => s.entries)
   const sidebarOpen = useLeaf((s) => s.sidebarOpen)
+  const texProjects = useLeaf((s) => s.tex)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
   const needle = query.trim().toLowerCase()
@@ -53,7 +55,7 @@ export function CommandPalette() {
   // Open tabs and every granted document, ranked together so the best match leads.
   const matches = useMemo(() => {
     if (!needle || !workspace) return []
-    const paths = new Set([...workspace.tabs.map((tab) => tab.path), ...[...entries.keys()].filter((path) => TEXT_FILE.test(path))])
+    const paths = new Set([...workspace.tabs.map((tab) => tab.path), ...[...entries.keys()].filter((path) => DOCUMENT_FILE.test(path))])
     return [...paths]
       .map((path) => [path, score(path, needle)] as const)
       .filter(([, value]) => value >= 0)
@@ -75,8 +77,33 @@ export function CommandPalette() {
   }
 
   const split = currentSplit(workspace)
+  const tex = workspace.active ? projectFor(workspace.active, texProjects) : undefined
   const previous = [...workspace.recentFiles, ...openPaths].find((path) => openPaths.has(path) && path !== workspace.active)
   const commands = [
+    { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: '?', keywords: '? help keys hotkeys', run: () => setState({ shortcutsOpen: true }) },
+    ...(workspace.tabs.length > 1
+      ? [
+          { label: 'Next tab', icon: ChevronRight, shortcut: ']', run: () => stepTab(1) },
+          { label: 'Previous tab', icon: ChevronLeft, shortcut: '[', run: () => stepTab(-1) },
+        ]
+      : []),
+    ...(tex
+      ? [
+          { label: 'Recompile LaTeX', icon: RefreshCw, shortcut: 'B', run: () => recompile(tex.root) },
+          tex.auto
+            ? { label: 'Pause auto-compile', icon: Pause, run: () => setAuto(tex.root, false) }
+            : { label: 'Resume auto-compile', icon: Play, run: () => setAuto(tex.root, true) },
+          split?.panes.includes(tex.pdf)
+            ? { label: 'Hide live PDF', icon: FileOutput, run: () => actions.unsplit(split.panes.find((pane) => pane !== tex.pdf)) }
+            : { label: 'Show live PDF', icon: FileOutput, run: () => showPreview(tex) },
+          ...(tex.pdfExists
+            ? [
+                { label: 'Copy compiled PDF path', icon: Copy, run: () => navigator.clipboard.writeText(tex.pdf) },
+                { label: `${REVEAL_LABEL}: compiled PDF`, icon: FolderSearch, run: () => actions.reveal(tex.pdf) },
+              ]
+            : []),
+        ]
+      : []),
     { label: 'Open document…', icon: FilePlus, shortcut: 'O', run: () => setState({ openDialog: 'open-file' }) },
     { label: 'Add folder…', icon: FolderPlus, run: () => setState({ openDialog: 'open-folder' }) },
     workspace.theme === 'dark'
@@ -120,7 +147,7 @@ export function CommandPalette() {
         : []),
     { label: 'New collection…', icon: Library, run: () => setState({ collectionDialog: { parent: null } }) },
     { label: 'Reload folders and documents', icon: RefreshCw, run: () => actions.refresh() },
-  ].filter((command) => !needle || command.label.toLowerCase().includes(needle))
+  ].filter((command: { label: string; keywords?: string }) => !needle || `${command.label} ${command.keywords ?? ''}`.toLowerCase().includes(needle))
 
   const allCollections = workspace.collections ?? []
   const collections = needle
