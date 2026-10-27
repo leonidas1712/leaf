@@ -49,28 +49,6 @@ export function currentPosition() {
   return lastPosition
 }
 
-/* ---------------------------------------------------------------- PDF → source */
-
-const pendingLines = new Map<string, number>()
-
-/** Show a source line: open or focus its tab (the PDF pane stays put), then scroll to it. */
-export function gotoLine(path: string, line: number | null) {
-  if (line) pendingLines.set(path, line)
-  const ws = getState().workspace
-  if (ws?.active !== path) {
-    if (ws?.tabs.some((tab) => tab.path === path)) actions.focus(path)
-    else actions.open(path)
-  }
-  window.dispatchEvent(new CustomEvent('leaf:goto-line', { detail: path }))
-}
-
-/** The line a pane should scroll to once it shows `path`, consumed on read. */
-export function takeLine(path: string) {
-  const line = pendingLines.get(path)
-  pendingLines.delete(path)
-  return line
-}
-
 /* ---------------------------------------------------------------- Build controls */
 
 export async function recompile(path: string) {

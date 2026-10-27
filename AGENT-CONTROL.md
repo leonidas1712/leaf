@@ -281,7 +281,7 @@ A failed build keeps the last good PDF on screen. Warnings are omitted from fail
 If it is on and the user is reading, run `leaf tex auto off`, make the edits, run `leaf tex build --json` and fix any errors it lists, then restore the user's setting with `leaf tex auto on`.
 Do not turn auto-compile on if the user had it off. Small edits need no pause: batching already folds them into one build.
 
-**Reader behaviour.** The PDF pane follows the source line being read or the editor's cursor (its **Follow** switch turns this off), keeps its page across rebuilds, and opens the source line under a double-click.
+**Reader behaviour.** The PDF pane follows the source line being read or the editor's cursor (its **Follow** switch turns this off), keeps its page across rebuilds, and shows the source line under a double-click (⌥-double-click opens it in the editor).
 Build errors are listed above the source and in the PDF pane; clicking one opens its line. `leaf tex where` and `leaf tex page` give agents the same mapping, for requests like "fix the overflow on page 7".
 
 ## Pin documents
@@ -301,6 +301,8 @@ Pin what the user asks you to, or what they will clearly keep returning to. Ask 
 ## Human editing controls
 
 Press `e` or select **Edit** to edit a local document. Select **Split** for a live Markdown preview.
+The editor opens where the reader is: on the selected text, else on the line a third of the way down the pane. This works for every document type.
+In a live LaTeX PDF, ⌥-double-click opens the editor on the source line; a plain double-click only shows it. One Esc leaves the editor, even with text selected; `r` then returns to reading.
 Press `⌘S` on macOS or `Ctrl+S` on Linux to save. The tab dot and save bar show unsaved changes.
 The **History** panel lists observed versions. Select one to inspect its changes; hover over an older version for **Restore**.
 Restore writes that version to disk as a new history entry. It does not erase later snapshots.

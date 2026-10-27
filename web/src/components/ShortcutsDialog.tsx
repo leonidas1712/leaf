@@ -47,7 +47,7 @@ const SECTIONS: { title: string; note?: string; rows: [keys: string[][], label: 
   {
     title: 'Editing',
     rows: [
-      [[['E']], 'Edit the document, or back to reading'],
+      [[['E']], 'Edit at the selection or reading position, or back to reading'],
       [[['⌘', 'S']], 'Save'],
       [[['Esc'], ['R']], 'Leave the editor, then read', 'then'],
     ],
@@ -57,7 +57,8 @@ const SECTIONS: { title: string; note?: string; rows: [keys: string[][], label: 
     note: 'In a project compiled with Live PDF preview.',
     rows: [
       [[['B']], 'Recompile now'],
-      [[['Double-click']], 'In the PDF: open the source line'],
+      [[['Double-click']], 'In the PDF: show the source line'],
+      [[['⌥', 'Double-click']], 'In the PDF: edit the source line'],
     ],
   },
   {

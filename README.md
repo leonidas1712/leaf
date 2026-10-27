@@ -64,6 +64,7 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 - Drag documents between folders, collections, groups, and tabs
 - ⌘K palette for documents, tabs, collections, and commands; `?` lists every shortcut
 - `[` and `]` step through tabs, wrapping within the current tab group
+- `e` opens the editor on your selection or where you are reading
 - ⌘F find in the document, with every match highlighted
 - Path entry that completes from disk, so big repositories stay usable
 - One saved workspace shared by every browser window

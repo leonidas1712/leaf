@@ -17,8 +17,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
-import { closeEditor, isDirty, openEditor } from '@/lib/drafts'
-import { actions, currentSplit, isPdf, setState, useLeaf } from '@/lib/store'
+import { closeEditor, isDirty } from '@/lib/drafts'
+import { editAt } from '@/lib/jump'
+import { actions, currentSplit, isPdf, reader, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { PinMenuItem } from './pins'
 import { GroupMenuItems, groupStyle } from './groups'
@@ -308,7 +309,7 @@ export function TabStrip() {
               value={editModes[active] ?? 'read'}
               onValueChange={(value) => {
                 if (value === 'read') closeEditor(active)
-                else if (value === 'edit' || value === 'split') openEditor(active, value)
+                else if (value === 'edit' || value === 'split') editAt(active, value, reader.editTarget())
               }}
               className="h-7 rounded-lg bg-accent/60 p-0.5"
               aria-label="Document mode"

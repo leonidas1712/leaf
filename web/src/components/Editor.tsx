@@ -4,7 +4,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, LanguageDescription, syntaxHighlighting } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
-import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search'
+import { highlightSelectionMatches, search, searchKeymap, searchPanelOpen } from '@codemirror/search'
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state'
 import {
   Decoration,
@@ -21,7 +21,8 @@ import {
 import { tags } from '@lezer/highlight'
 import { saveDraft, setDraftText } from '@/lib/drafts'
 import { isMarkdown } from '@/lib/markdown'
-import { isTex, reportPosition, takeLine } from '@/lib/tex'
+import { takeLine, takeRange } from '@/lib/jump'
+import { isTex, reportPosition } from '@/lib/tex'
 import { getState } from '@/lib/store'
 import { isConflictBase, isConflictEnd, isConflictSplit, isConflictStart } from '@/lib/versions'
 import type { MarkdownConfig } from '@lezer/markdown'
@@ -260,13 +261,23 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
       conflicts,
       keymap.of([
         { key: 'Mod-s', preventDefault: true, run: (v) => (flush(v), saveDraft(path), true) },
+        // Esc leaves the editor in one press even with text selected, so Esc then r reads instead
+        // of typing "r" over the selection. Find and extra cursors still take the first Esc.
+        {
+          key: 'Escape',
+          run: (v) => {
+            if (searchPanelOpen(v.state) || v.state.selection.ranges.length > 1) return false
+            if (!v.state.selection.main.empty) v.dispatch({ selection: { anchor: v.state.selection.main.head } })
+            v.contentDOM.blur()
+            return true
+          },
+        },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
         ...searchKeymap,
         indentWithTab,
-        // Last, so Esc first closes find and collapses extra cursors. Leaving the editor lets
-        // single-key shortcuts work again: Esc, then r, returns to reading.
+        // After find closes or extra cursors collapse, the next Esc leaves the editor.
         { key: 'Escape', run: (v) => (v.contentDOM.blur(), true) },
       ]),
       EditorView.updateListener.of((update) => {
@@ -289,12 +300,18 @@ export function Editor({ path, text, fontSize }: { path: string; text: string; f
     })
     view.current = editor
     editor.focus()
-    // A jump from the PDF or an error list puts the cursor on that line.
+    // A jump puts the cursor where the reader was: on its selection, or on a line (from the
+    // reading position, the PDF, or an error list).
     const goto = () => {
-      const line = takeLine(path)
-      if (!line) return
-      const at = editor.state.doc.line(Math.min(Math.max(line, 1), editor.state.doc.lines)).from
-      editor.dispatch({ selection: { anchor: at }, effects: EditorView.scrollIntoView(at, { y: 'center' }) })
+      const length = editor.state.doc.length
+      const range = takeRange(path)
+      const line = range ? undefined : takeLine(path)
+      if (!range && !line) return
+      const anchor = range
+        ? Math.min(range.from, length)
+        : editor.state.doc.line(Math.min(Math.max(line!, 1), editor.state.doc.lines)).from
+      const head = range ? Math.min(range.to, length) : anchor
+      editor.dispatch({ selection: { anchor, head }, effects: EditorView.scrollIntoView(anchor, { y: 'center' }) })
       editor.focus()
     }
     const onGoto = (event: Event) => (event as CustomEvent<string>).detail === path && goto()

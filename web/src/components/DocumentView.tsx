@@ -7,8 +7,11 @@ import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdow
 import { renderDiagram } from '@/lib/mermaid'
 import { actions, currentSplit, getState, isPdf, reader, scrolls, setState, DOCUMENT_FILE, useLeaf, type Heading } from '@/lib/store'
 import { diskChanged } from '@/lib/drafts'
-import { shareHighlight } from '@/lib/anchors'
-import { isTex, reportPosition, takeLine } from '@/lib/tex'
+import { anchorFor, buildIndex, selectionIn, shareHighlight } from '@/lib/anchors'
+import type { SourceRange } from '@/lib/jump'
+import { findInSource } from '@/lib/sourcePosition'
+import { takeLine } from '@/lib/jump'
+import { isTex, reportPosition } from '@/lib/tex'
 import { TexBar } from './TexControls'
 import { EditBar } from './EditBar'
 import { FindBar } from './FindBar'
@@ -20,6 +23,9 @@ import { SidePanel } from './SidePanel'
 
 interface Rendered {
   path: string
+  /** The text rendered, and whether it shows as a code block (so rendered text and source match). */
+  text: string
+  code: boolean
   html: string
   stats: { words: number; minutes: number }
   diagrams: { mount: HTMLElement; source: string; result: DiagramResult }[]
@@ -165,6 +171,44 @@ export function DocumentView({
     return true
   }, [])
 
+  const shownRef = useRef(rendered)
+  shownRef.current = rendered
+  /** The editor opens on the selection, else on the line being read (a third of the way down). */
+  const editTarget = useCallback((): SourceRange | { line: number } | null => {
+    const node = article.current
+    const view = viewport.current
+    const shown = shownRef.current
+    if (!node || !view || !shown || shown.path !== path || displayed.current !== path) return null
+    const range = selectionIn(node)
+    const code = shown.code ? node.querySelector<HTMLElement>('pre > code') : null
+    if (code) {
+      if (range && code.contains(range.startContainer)) {
+        const before = document.createRange()
+        before.setStart(code, 0)
+        before.setEnd(range.startContainer, range.startOffset)
+        const from = before.toString().length
+        return { from, to: from + range.toString().length }
+      }
+      const line = lineInView(code, view)
+      return line ? { line } : null
+    }
+    if (range) {
+      const anchor = anchorFor(range, node, buildIndex(node))
+      if (anchor) return findInSource(shown.text, anchor.quote, true, anchor.prefix, anchor.suffix)
+    }
+    // Nothing selected: the first block reaching a third of the way down the pane, else the last one.
+    const box = view.getBoundingClientRect()
+    const reading = box.top + box.height / 3
+    const blocks = [...node.querySelectorAll<HTMLElement>('p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, td, th, dt, dd, figcaption')]
+    const block = blocks.find((item) => item.getBoundingClientRect().bottom >= reading) ?? blocks.at(-1)
+    if (!block) return null
+    const whole = document.createRange()
+    whole.selectNodeContents(block)
+    const anchor = anchorFor(whole, node, buildIndex(node))
+    const found = anchor && findInSource(shown.text, anchor.quote, true, anchor.prefix, anchor.suffix)
+    return found ? { from: found.from, to: found.from } : null
+  }, [path])
+
   useEffect(() => {
     if (!focused) return
     reader.rememberActiveScroll = remember
@@ -173,7 +217,8 @@ export function DocumentView({
       if (displayed.current === target) viewport.current?.scrollTo({ top, behavior: 'instant' })
     }
     reader.scrollToHeading = scrollToHeading
-  }, [focused, remember, scrollToHeading])
+    reader.editTarget = editTarget
+  }, [focused, remember, scrollToHeading, editTarget])
 
   useEffect(() => {
     reader.headingFinders.set(pane, scrollToHeading)
@@ -225,8 +270,8 @@ export function DocumentView({
         }
         if (stale()) return
         const extension = path.split('.').pop()?.toLowerCase() ?? ''
-        const html =
-          (preview !== null || !source) && isMarkdown(path)
+        const rendersMarkdown = (preview !== null || !source) && isMarkdown(path)
+        const html = rendersMarkdown
             ? renderMarkdown(text)
             : `<pre><code class="language-${source ? 'markdown' : (CODE_LANGUAGE[extension] ?? 'plaintext')}">${escapeHTML(text)}</code></pre>`
         // Parse off-DOM so diagrams and images resolve before anything visible changes.
@@ -300,7 +345,7 @@ export function DocumentView({
         urls.current.forEach(URL.revokeObjectURL)
         urls.current = fresh
         setFailure(null)
-        setRendered({ path, html: scratch.innerHTML, stats: readingStats(text), diagrams: results })
+        setRendered({ path, text, code: !rendersMarkdown, html: scratch.innerHTML, stats: readingStats(text), diagrams: results })
         // Keep the live nodes: mounts are re-queried from the committed article below.
         setOutline({ headings, status: `${readingStats(text).words.toLocaleString()} words` })
       } catch (error) {

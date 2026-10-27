@@ -7,13 +7,14 @@ import { startComment } from '@/components/CommentsRail'
 import { focusedArticle } from '@/lib/anchors'
 import { closeFind, findControls, openFind } from '@/components/FindBar'
 import { DiffDialog } from '@/components/DiffDialog'
-import { closeEditor, isDirty, openEditor, saveDraft } from '@/lib/drafts'
+import { closeEditor, isDirty, saveDraft } from '@/lib/drafts'
 import { openSearchPanel } from '@codemirror/search'
 import { EditorView } from '@codemirror/view'
 import { EmptyState } from '@/components/EmptyState'
 import { GroupDialog } from '@/components/groups'
 import { LeafMark } from '@/components/LeafMark'
 import { OpenDialog } from '@/components/OpenDialog'
+import { editAt } from '@/lib/jump'
 import { projectFor, recompile } from '@/lib/tex'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { togglePin } from '@/components/pins'
@@ -22,7 +23,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { TabStrip } from '@/components/TabStrip'
 import type { Theme } from '@/lib/api'
 import { basename } from '@/lib/paths'
-import { actions, currentSplit, getState, isPdf, setState, startSync, stepTab, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, isPdf, reader, setState, startSync, stepTab, useLeaf } from '@/lib/store'
 
 function typing(target: EventTarget | null) {
   const element = target as HTMLElement | null
@@ -105,8 +106,9 @@ function onKey(event: KeyboardEvent) {
     o: () => setState({ openDialog: 'open-file' }),
     c: active ? () => startComment(active, focusedArticle()) : undefined,
     p: active ? () => togglePin(workspace) : undefined,
+    // e opens the editor on the selection, or on the line being read.
     e: active
-      ? () => (getState().editModes[active] ? closeEditor(active) : openEditor(active, 'edit'))
+      ? () => (getState().editModes[active] ? closeEditor(active) : editAt(active, 'edit', reader.editTarget()))
       : undefined,
     r: active && getState().editModes[active] ? () => closeEditor(active) : undefined,
   }

@@ -5,7 +5,8 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs
 import { fetchFile, REVEAL_LABEL, texForward, texInverse, type Entry, type TexPosition } from '@/lib/api'
 import { displayPath } from '@/lib/paths'
 import { actions, reader, scrolls, setState, useLeaf } from '@/lib/store'
-import { currentPosition, gotoLine, onPosition, type SourcePosition } from '@/lib/tex'
+import { editAt, gotoLine } from '@/lib/jump'
+import { currentPosition, onPosition, type SourcePosition } from '@/lib/tex'
 import { cn } from '@/lib/utils'
 import { TexActions, TexIssues, TexStatus, TexToneBar, texTone } from './TexControls'
 
@@ -106,6 +107,7 @@ export function PdfView({
       if (target === path) viewport.current?.scrollTo({ top, behavior: 'instant' })
     }
     reader.scrollToHeading = () => false
+    reader.editTarget = () => null
   }, [focused, path, remember])
 
   useEffect(() => {
@@ -309,8 +311,10 @@ export function PdfView({
     const x = (event.clientX - box.left) / scale.current
     const y = (event.clientY - box.top) / scale.current
     document.getSelection()?.removeAllRanges()
+    // ⌥-double-click opens the editor on that line; a plain double-click shows it.
+    const edit = event.altKey
     texInverse(path, Number(holder.dataset.page), x, y)
-      .then((found) => gotoLine(found.path, found.line))
+      .then((found) => (edit ? editAt(found.path, 'edit', { line: found.line }) : gotoLine(found.path, found.line)))
       .catch((error) => setState({ status: (error as Error).message }))
   }
 

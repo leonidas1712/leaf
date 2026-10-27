@@ -33,6 +33,7 @@ import {
   type Theme,
   type Workspace,
 } from './api'
+import type { SourceRange } from './jump'
 
 /** Files a tab can show. PDFs among them are read-only and take no comments. */
 export const DOCUMENT_FILE = /\.(md|markdown|txt|json|ya?ml|csv|log|tex|bib|pdf)$/i
@@ -179,6 +180,8 @@ export const reader = {
   },
   scrollTop: () => 0,
   scrollToHeading: (_target: string): boolean => false,
+  /** Where the editor should open in the focused document: the selection, or the line being read. */
+  editTarget: (): SourceRange | { line: number } | null => null,
   rememberActiveScroll: () => {},
   applyScroll: (_path: string, _top: number) => {},
   /** Heading lookups for every pane, so a live heading command also finds the other pane's document. */

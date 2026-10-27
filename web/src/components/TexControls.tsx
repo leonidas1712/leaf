@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { TexIssue, TexProject } from '@/lib/api'
 import { displayPath } from '@/lib/paths'
 import { actions, currentSplit, useLeaf } from '@/lib/store'
-import { enableProject, gotoLine, projectFor, recompile, setAuto, showPreview } from '@/lib/tex'
+import { gotoLine } from '@/lib/jump'
+import { enableProject, projectFor, recompile, setAuto, showPreview } from '@/lib/tex'
 import { cn } from '@/lib/utils'
 
 function ago(seconds: number) {
