@@ -39,7 +39,7 @@ Explicit editing commands can modify known local documents. Collection and tab a
 
 Use `leaf split PATH --side right --json` to show a document beside the active one. Sides are left, right, up, and down.
 The focused pane shows `active`, except that a PDF beside a text document stays put while text tabs change. Heading and scroll commands act on it.
-PDFs open read-only and take no comments; put comments on the `.tex` or Markdown source.
+PDFs open read-only. Comments made on a live LaTeX PDF are stored on the `.tex` source behind them; other PDFs take none.
 Word documents (`.docx`) open read-only as rendered pages and take comments; their line hints count paragraphs. Closing either pane's tab ends the split. Use `leaf unsplit --json` to return to one pane.
 Your commands never hide a document the user is editing. Leaf shows yours in the other pane, and `active` stays theirs.
 Use `open --background` to add a tab without showing it. Use `--replace` only when the user asks you to take over their view.
@@ -65,7 +65,8 @@ Deleting a collection removes its subtree references only; files and open tabs r
 ## Document comments
 
 Use `leaf comments PATH --format md` to read open and working threads with current line hints.
-Use `--all` for all documents and `--status all` to include resolved threads.
+Use a folder path for every document under it (`leaf comments ~/paper --format md` for a whole LaTeX paper), `--all`
+for all documents, and `--status all` to include resolved threads. A thread made on the PDF also shows the text selected there.
 Use `--json` for structured threads and locations.
 For a `.docx`, edit it with a library such as `python-docx`; `leaf comments FILE.docx --word` saves a copy beside it with the threads as Word comments.
 

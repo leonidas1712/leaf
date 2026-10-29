@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 import { commentsMarkdown, exportWordComments, type Comment } from '@/lib/api'
 import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, shareHighlight, type TextIndex } from '@/lib/anchors'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, getState, isPdf, setState, useLeaf } from '@/lib/store'
+import { actions, getState, isPdf, reader, setState, useLeaf } from '@/lib/store'
+import { projectFor } from '@/lib/tex'
 import { cn } from '@/lib/utils'
 import { CommentCard, Composer, type Placement } from './CommentCard'
 
@@ -17,9 +18,11 @@ export function documentComments(comments: Comment[] | undefined, path: string) 
 
 /** The instruction to paste into any agent; it only needs the leaf CLI. */
 export function agentPrompt(path: string) {
-  const file = displayPath(path)
+  // A LaTeX project's comments span its .tex files (and those made on its PDF land on them), so ask for the folder.
+  const project = projectFor(path)
+  const file = displayPath(project ? project.root : path)
   return [
-    `Address my Leaf comments on ${file}.`,
+    project ? `Address my Leaf comments on the LaTeX project in ${file}.` : `Address my Leaf comments on ${file}.`,
     `Read them with \`leaf comments ${file} --format md\`.`,
     `For each one: \`leaf comment working ID --author <your name>\`, edit the file, then \`leaf comment resolve ID "what you changed" --author <your name>\`.`,
     `If a comment needs my decision or you disagree, reply with \`leaf comment reply ID "…" --author <your name>\` and leave it open.`,
@@ -315,7 +318,9 @@ export function SelectionCommentButton({ path, article }: { path: string; articl
 /** Start a draft from the current selection, or on the whole document when nothing is selected. */
 export function startComment(path: string, root: HTMLElement | null) {
   if (isPdf(path)) {
-    toast('PDFs take no comments. Comment on the source beside it.')
+    // A live LaTeX PDF comments on its source; other PDFs take no comments.
+    if (reader.commentOnPdf) void reader.commentOnPdf()
+    else toast('This PDF takes no comments. Comment on its source, or preview it with live LaTeX.')
     return
   }
   const live = !!selectionIn(root)

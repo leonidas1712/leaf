@@ -59,6 +59,7 @@ const SECTIONS: { title: string; note?: string; rows: [keys: string[][], label: 
       [[['B']], 'Recompile now'],
       [[['Double-click']], 'In the PDF: show the source line'],
       [[['⌥', 'Double-click']], 'In the PDF: edit the source line'],
+      [[['C']], 'In a live PDF: comment on the selection (stored on its source)'],
     ],
   },
   {

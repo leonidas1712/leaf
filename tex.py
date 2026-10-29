@@ -279,10 +279,27 @@ class SyncIndex:
                 'height': round(max(bottom - top, 8), 2), 'path': str(path), 'line': target}
 
     def inverse(self, page, x, y):
-        """The source line behind a point on a page: the smallest line box holding it, else the nearest."""
+        """The source line behind a point on a page.
+
+        A typeset line's box carries the line where its paragraph ended, so the glue, kerns and math
+        on the same baseline decide first: the last one at or before the point, else the first after
+        it. Without those, the smallest line box holding the point, else the nearest record.
+        """
         records = self.pages.get(page)
         if not records:
             return None
+        holder = [record for record in records if record[3] == '(' and record[6] > 0
+                  and record[4] - 1 <= x <= record[4] + record[6] + 1 and record[5] - 1 <= y <= record[5] + record[7] + 1]
+        if holder:
+            line_box = min(holder, key=lambda record: record[6] * max(record[7], 1))
+            top, bottom = line_box[5], line_box[5] + line_box[7]
+            # Glue and kerns sit on the baseline; the box's top was moved up by its height.
+            fine = [record for record in records if record[3] in 'xkg$' and top - 1 <= record[5] <= bottom + 1
+                    and line_box[4] - 1 <= record[4] <= line_box[4] + line_box[6] + 1]
+            before = [record for record in fine if record[4] <= x]
+            if before or fine:
+                best = max(before, key=lambda record: record[4]) if before else min(fine, key=lambda record: record[4])
+                return {'path': best[1], 'line': best[2], 'page': page}
         holding = [record for record in records if record[3] in '(h' and record[6] > 0
                    and record[4] - 1 <= x <= record[4] + record[6] + 1 and record[5] - 1 <= y <= record[5] + record[7] + 1]
         if holding:
@@ -668,3 +685,23 @@ class TexProjects:
         with self.lock:
             project = self.require(path)
             return {'pdf': str(project.pdf), 'page': int(page), 'sources': project.index().page_sources(int(page))}
+
+    def pdf_anchor(self, pdf, start, end, text):
+        """A comment anchor on the source behind text selected in a project's PDF.
+
+        `start` and `end` are (page, x, y) at the selection's first and last characters. A selection
+        that ends in another file stays in the file where it starts.
+        """
+        from comments import read_document
+        from tex_anchor import pdf_anchor
+        with self.lock:
+            index = self.require(pdf).index()
+            first = index.inverse(*start)
+            last = index.inverse(*end)
+        if first is None:
+            raise ValueError('No source found on that page.')
+        stop = last['line'] if last and last['path'] == first['path'] else first['line']
+        source = read_document(first['path'])
+        if source is None:
+            raise ValueError('That source file cannot be read.')
+        return dict(pdf_anchor(source, first['line'], stop, text, start[0]), path=first['path'])

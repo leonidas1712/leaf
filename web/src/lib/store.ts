@@ -187,6 +187,8 @@ export const reader = {
   editTarget: (): SourceRange | { line: number } | null => null,
   rememberActiveScroll: () => {},
   applyScroll: (_path: string, _top: number) => {},
+  /** Comment on the selection in the focused live LaTeX PDF, set while one is focused. */
+  commentOnPdf: null as (() => Promise<boolean>) | null,
   /** Heading lookups for every pane, so a live heading command also finds the other pane's document. */
   headingFinders: new Map<string, (target: string) => boolean>(),
 }

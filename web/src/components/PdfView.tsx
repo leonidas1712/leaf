@@ -9,6 +9,8 @@ import { editAt, gotoLine } from '@/lib/jump'
 import { currentPosition, onPosition, type SourcePosition } from '@/lib/tex'
 import { cn } from '@/lib/utils'
 import { TexActions, TexIssues, TexStatus, TexToneBar, texTone } from './TexControls'
+import { SelectionCommentButton } from './CommentsRail'
+import { PdfComments } from './PdfComments'
 
 type Pdfjs = typeof import('pdfjs-dist')
 let pdfjs: Promise<Pdfjs> | null = null
@@ -79,6 +81,8 @@ export function PdfView({
   const scale = useRef(1)
   const project = useLeaf((s) => s.tex.find((p) => p.pdf === path))
   const [follow, setFollow] = useState(readFollow)
+  /** Counts layouts, so comment highlights repaint on the new pages. */
+  const [layout, setLayout] = useState(0)
 
   useEffect(() => setZoom(zooms.get(path) ?? 1), [path])
 
@@ -233,6 +237,7 @@ export function PdfView({
               text.className = 'textLayer'
               holder.prepend(canvas, text)
               await new pdf.lib.TextLayer({ textContentSource: pdfPage.streamTextContent(), container: text, viewport: view }).render()
+              holder.dispatchEvent(new CustomEvent('leaf:text-layer', { bubbles: true }))
             } catch (error) {
               if ((error as Error)?.name !== 'RenderingCancelledException') holder.dataset.failed = ''
             }
@@ -264,6 +269,7 @@ export function PdfView({
         if (holder) node.scrollTo({ top: holder.offsetTop + target.offset * holder.offsetHeight, behavior: 'instant' })
       }
       settled.current = true
+      setLayout((count) => count + 1)
       reader.markRendering(pane, false)
       // A preview opened beside a source shows where that source is.
       const position = currentPosition()
@@ -467,6 +473,10 @@ export function PdfView({
         )}
         {!current && !failed && <p className="mt-10 animate-pulse text-center text-sm text-ink-faint">Loading PDF…</p>}
         <div ref={pagesHost} onDoubleClick={onDoubleClick} className={cn('pdf-pages', !current && 'hidden')} style={{ padding: GAP, gap: GAP }} />
+        {project && current && (
+          <PdfComments pdf={path} project={project} host={pagesHost} viewport={viewport} scale={scale} version={layout} focused={focused} />
+        )}
+        {project && current && <SelectionCommentButton path={path} article={pagesHost} />}
       </div>
     </div>
   )

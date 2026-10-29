@@ -9,7 +9,7 @@ from comments import list_comments, markdown_comments
 def configure(child, name):
     """Add listing filters and explicit discussion subcommands to argparse."""
     if name == 'comments':
-        child.add_argument('paths', nargs='*', metavar='PATH')
+        child.add_argument('paths', nargs='*', metavar='PATH', help='Documents, or folders for every document under them')
         child.add_argument('--all', action='store_true', help='Include every document')
         child.add_argument('--status', choices=['open', 'working', 'resolved', 'all'])
         child.add_argument('--format', choices=['md', 'json'], default='md')

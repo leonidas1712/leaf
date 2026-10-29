@@ -152,6 +152,7 @@ Each status change adds an entry, including repeated states. All timestamps use 
 
 ```sh
 leaf comments /path/plan.md --format md
+leaf comments /path/paper --format md
 leaf comments --all --json
 leaf comments --all --status resolved --format md
 leaf comments --all --status all --json
@@ -169,13 +170,16 @@ leaf comment rm k_ID
 
 Pass your own name with `--author`, such as `codex` or `claude`.
 Without this flag, the CLI uses `LEAF_AUTHOR`, then `agent`.
-Without paths, `leaf comments` reads the active document. The default filter includes open and working threads.
+Without paths, `leaf comments` reads the active document. A folder path reads every document under it, such as all
+of a paper's `.tex` files. The default filter includes open and working threads.
 `--all` includes all documents. `--status all` also includes resolved threads.
 On a Word document (`.docx`), line hints count paragraphs: body paragraphs and table cells in order, then footnotes.
 Headings are Word's heading styles. Leaf cannot edit `.docx` files; change them with a library such as `python-docx`.
 `leaf comments FILE.docx --word` writes `FILE (Leaf comments).docx` beside it, never changing the original. The
 open and working threads become Word comments on their passages, with replies in the same comment. Threads whose
 passage is no longer found attach to the first paragraph and quote it. Add `--status all` to include resolved ones.
+Comments made on a live LaTeX PDF are stored on the `.tex` file behind the selection, quoting its source, so they
+list with that file. Their Markdown adds `Selected in the PDF, page N: “…”` with the text as the PDF showed it.
 Comment listing works while Leaf is stopped. Mutations start the service without opening a browser.
 
 For each requested comment:
@@ -287,6 +291,9 @@ If it is on and the user is reading, run `leaf tex auto off`, make the edits, ru
 Do not turn auto-compile on if the user had it off. Small edits need no pause: batching already folds them into one build.
 
 **Reader behaviour.** The PDF pane follows the source line being read or the editor's cursor (its **Follow** switch turns this off), keeps its page across rebuilds, and shows the source line under a double-click (⌥-double-click opens it in the editor).
+Selecting text in the PDF and pressing **Comment** (or `c`) comments on the source behind it: SyncTeX names the file and
+lines, and the selected words are found there through markup, citations, and math. When they can't be, the comment
+quotes those source lines. Open threads on the project's sources are highlighted in the PDF; clicking one opens it.
 Build errors are listed above the source and in the PDF pane; clicking one opens its line. `leaf tex where` and `leaf tex page` give agents the same mapping, for requests like "fix the overflow on page 7".
 
 ## Pin documents
@@ -347,7 +354,7 @@ Merge and competing-edit checks require `diff3`, included on macOS and available
 
 The browser saves with a SHA-256 hash of the bytes it loaded. A stale hash returns HTTP 409 and the current text.
 Restore and merge also check the current hash before writing. Writes use a temporary file and atomic replacement, retaining file permissions.
-Only supported UTF-8 documents up to 10 MiB can be edited. PDFs (up to 100 MiB) are read-only and take no comments; comment on their source.
+Only supported UTF-8 documents up to 10 MiB can be edited. PDFs (up to 100 MiB) are read-only. A live LaTeX PDF takes comments, stored on its `.tex` sources; other PDFs take none.
 Word documents (`.docx`, up to 50 MiB) are read-only and take comments on their rendered text. Leaf state files and Aboard cached documents remain read-only.
 All connected readers share one disk document; browser drafts are separate from saved history.
 

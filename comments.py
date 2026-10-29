@@ -26,6 +26,12 @@ def anchor_value(value):
     for key, limit in (('prefix', 32), ('suffix', 32), ('heading', 1000)):
         if key in value:
             result[key] = text_field(value[key], key, limit, empty=True)
+    # A comment made on a compiled PDF keeps what was selected there, beside the source quote.
+    if value.get('pdf') is not None:
+        pdf = value['pdf']
+        if not isinstance(pdf, dict) or not isinstance(pdf.get('page'), int) or isinstance(pdf.get('page'), bool) or pdf['page'] < 1:
+            raise ValueError('A PDF selection needs its page number and text.')
+        result['pdf'] = {'page': pdf['page'], 'text': ' '.join(text_field(pdf.get('text'), 'PDF text', 2000).split())}
     return result
 
 
@@ -40,7 +46,7 @@ def apply_comment_action(data, command, extensions):
         if not path.is_file() or path.suffix.lower() not in extensions:
             raise ValueError('Choose a supported text document.')
         threads.append({'id': 'k_' + uuid.uuid4().hex[:12], 'path': str(path),
-                        'anchor': enrich_anchor(anchor_value(command.get('anchor')), read_document(path)),
+                        'anchor': enrich_anchor(anchor_value(command.get('anchor')), read_document(path), path.suffix.lower() == '.tex'),
                         'body': text_field(command.get('body'), 'body'), 'author': author,
                         'created': now, 'updated': now, 'status': 'open',
                         'statusBy': author, 'statusAt': now, 'replies': []})
@@ -122,6 +128,26 @@ def exact_span(anchor, text):
     return 'attached', matches[0], matches[0] + len(quote)
 
 
+# LaTeX comments, and the sectioning commands that make a .tex file's heading trail.
+COMMENT = re.compile(r'(?<!\\)%[^\n]*')
+SECTION = re.compile(r'\\(part|chapter|section|subsection|subsubsection)\*?\s*(?:\[[^\]\n]*\]\s*)?\{((?:[^{}\n]|\{[^{}\n]*\})*)\}')
+LEVELS = {'part': 0, 'chapter': 1, 'section': 2, 'subsection': 3, 'subsubsection': 4}
+
+
+def section_trail(source, offset):
+    """The LaTeX sections enclosing `offset` in this file, outermost first."""
+    trail = []
+    # Through the end of the line, so a selection inside a section title counts that section.
+    end = source.find('\n', offset)
+    visible = COMMENT.sub(lambda match: ' ' * len(match.group(0)), source[:len(source) if end < 0 else end])
+    for match in SECTION.finditer(visible):
+        level = LEVELS[match.group(1)]
+        while trail and trail[-1][0] >= level:
+            trail.pop()
+        trail.append((level, ' '.join(re.sub(r'\\[a-zA-Z]+\s*|[{}]', '', match.group(2)).split())))
+    return ' › '.join(title for _, title in trail)[:1000]
+
+
 def heading_trail(source, offset):
     """Collect Markdown heading ancestors before the selection, excluding fenced code."""
     trail, fence = [], None
@@ -150,8 +176,10 @@ def heading_trail(source, offset):
     return ' › '.join(title for _, title in trail)[:1000]
 
 
-def enrich_anchor(anchor, source):
-    """Fill absent context only for a unique quote, preserving explicit UI selectors."""
+def enrich_anchor(anchor, source, latex=False):
+    """Fill absent context only for a unique quote, preserving explicit UI selectors.
+
+    The heading is the Markdown heading trail, or for LaTeX the enclosing sections."""
     if anchor is None or source is None:
         return anchor
     text, offsets = normalized(source, True)
@@ -161,7 +189,7 @@ def enrich_anchor(anchor, source):
     result = dict(anchor)
     for key, value in (('prefix', text[max(0, start - 32):start]),
                        ('suffix', text[end:end + 32]),
-                       ('heading', heading_trail(source, offsets[start]))):
+                       ('heading', section_trail(source, offsets[start]) if latex else heading_trail(source, offsets[start]))):
         if not result.get(key):
             result[key] = value
     return result
@@ -215,11 +243,17 @@ def read_document(path):
 
 
 def list_comments(data, paths=None, statuses=None):
-    """Read bounded current files once per path and attach derived location metadata."""
+    """Read bounded current files once per path and attach derived location metadata.
+
+    A folder among `paths` selects every document under it."""
     result, sources = [], {}
+    wanted = None if paths is None else set(paths)
+    folders = [] if paths is None else [path.rstrip('/') + '/' for path in paths if Path(path).is_dir()]
     for thread in data.get('comments', []):
         path = thread['path']
-        if (paths is not None and path not in paths) or (statuses is not None and thread['status'] not in statuses):
+        if wanted is not None and path not in wanted and not any(path.startswith(folder) for folder in folders):
+            continue
+        if statuses is not None and thread['status'] not in statuses:
             continue
         if path not in sources:
             sources[path] = read_document(path)
@@ -241,6 +275,9 @@ def markdown_comments(threads):
             lines.append('> ' + thread['anchor']['quote'].replace('\n', '\n> '))
             if thread['anchor'].get('heading'):
                 lines.append('Heading: ' + thread['anchor']['heading'])
+            if thread['anchor'].get('pdf'):
+                pdf = thread['anchor']['pdf']
+                lines.append(f"Selected in the PDF, page {pdf['page']}: “{pdf['text']}”")
             lines.append('')
         lines.append(f"{thread['author']} · {thread['created']}: {thread['body']}")
         for reply in thread['replies']:

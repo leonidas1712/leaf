@@ -176,13 +176,18 @@ export function rememberSelection(root: HTMLElement | null) {
   rememberedAt = Date.now()
 }
 
-/** Anchor for the current, or recently made (≤60 s), text selection inside `root`; else null. */
-export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null {
+/** The current, or recently made (≤60 s), text selection inside `root`; else null. */
+export function recentSelection(root: HTMLElement | null): Range | null {
   if (!root) return null
   rememberSelection(root)
   const range = Date.now() - rememberedAt < 60_000 ? remembered : null
-  if (!range || range.collapsed || !root.contains(range.commonAncestorContainer)) return null
-  return anchorFor(range, root, buildIndex(root))
+  return range && !range.collapsed && root.contains(range.commonAncestorContainer) ? range : null
+}
+
+/** Anchor for the current, or recently made (≤60 s), text selection inside `root`; else null. */
+export function selectionAnchor(root: HTMLElement | null): CommentAnchor | null {
+  const range = recentSelection(root)
+  return range && root ? anchorFor(range, root, buildIndex(root)) : null
 }
 
 export function forgetSelection() {

@@ -39,6 +39,8 @@ export interface CommentAnchor {
   prefix: string
   suffix: string
   heading?: string
+  /** Set on comments made on a compiled PDF: the page and the text selected there. */
+  pdf?: { page: number; text: string }
 }
 
 export type CommentStatus = 'open' | 'working' | 'resolved'
@@ -281,6 +283,37 @@ export async function texForward(path: string, line?: number): Promise<TexPositi
 export async function texInverse(pdf: string, page: number, x: number, y: number): Promise<{ path: string; line: number }> {
   const query = new URLSearchParams({ pdf, page: String(page), x: x.toFixed(2), y: y.toFixed(2) })
   return (await request('/api/tex/inverse?' + query)).json()
+}
+
+export interface PdfPoint {
+  page: number
+  x: number
+  y: number
+}
+
+/** The source anchor behind text selected in a live LaTeX PDF; `match` is 'line' when only the lines were found. */
+export function texAnchor(pdf: string, start: PdfPoint, end: PdfPoint, text: string) {
+  return postJSON<{ path: string; line: number; endLine: number; match: 'text' | 'line'; anchor: CommentAnchor }>('/api/tex/anchor', {
+    pdf,
+    start,
+    end,
+    text,
+  })
+}
+
+/** An open thread on a project source, placed in the PDF: the band its lines typeset to, and the passage's letters. */
+export interface PdfComment {
+  id: string
+  path: string
+  line: number
+  page: number
+  y: number
+  height: number
+  letters: string
+}
+
+export async function texComments(pdf: string): Promise<{ comments: PdfComment[] }> {
+  return (await request('/api/tex/comments?' + new URLSearchParams({ pdf }))).json()
 }
 
 /** Show a file or folder in the system file manager (Finder on macOS). */

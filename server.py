@@ -202,6 +202,55 @@ def document_stamps():
     return stamps
 
 
+def pdf_anchor(data):
+    """Map a passage selected in a live LaTeX PDF to a comment anchor on its source file."""
+    def point(value):
+        if not isinstance(value, dict):
+            raise ValueError('Give the selection\'s start and end as page, x and y.')
+        page, x, y = value.get('page'), value.get('x'), value.get('y')
+        if isinstance(page, bool) or not isinstance(page, int) or page < 1 or not all(
+                isinstance(item, (int, float)) and not isinstance(item, bool) for item in (x, y)):
+            raise ValueError('Give the selection\'s start and end as page, x and y.')
+        return page, float(x), float(y)
+    text = data.get('text')
+    if not isinstance(data.get('pdf'), str) or not isinstance(text, str) or not text.strip() or len(text) > 20000:
+        raise ValueError('Give the PDF path and the selected text.')
+    return TEX.pdf_anchor(data['pdf'], point(data.get('start')), point(data.get('end')), text)
+
+
+def pdf_comments(pdf):
+    """Where the open threads on a LaTeX project's sources fall in its PDF, for highlighting there.
+
+    Each thread gets the box its source lines typeset to and the letters of the passage (the PDF
+    selection it was made on, else its source quote without markup) to find inside that box.
+    """
+    from tex_anchor import letters, source_letters
+    with TEX.lock:
+        project = TEX.require(pdf)
+    with LOCK:
+        threads = list_comments(WORKSPACE.data, [str(project.root)], ['open', 'working'])
+    placed = []
+    for thread in threads:
+        location, anchor = thread['location'], thread['anchor']
+        if not anchor or not location['line']:
+            continue
+        try:
+            box = TEX.forward(thread['path'], location['line'])
+        except ValueError:
+            continue
+        try:
+            end = TEX.forward(thread['path'], location['endLine'])
+        except ValueError:
+            end = box
+        if end['page'] == box['page'] and end['y'] >= box['y']:
+            bottom = max(box['y'] + box['height'], end['y'] + end['height'])
+            box = dict(box, height=bottom - box['y'])
+        wanted = letters(anchor['pdf']['text'])[0] if anchor.get('pdf') else source_letters(anchor['quote'])[0]
+        placed.append({'id': thread['id'], 'path': thread['path'], 'line': location['line'], 'page': box['page'],
+                       'y': box['y'], 'height': box['height'], 'letters': wanted})
+    return {'pdf': str(project.pdf), 'comments': placed}
+
+
 def tex_action(data):
     """Enable, disable, build, or switch auto-compile for a LaTeX project; optionally wait for the build."""
     action = data.get('action')
@@ -336,6 +385,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(TEX.forward(query.get('path', [''])[0], int(line) if line else None))
             elif url.path == '/api/tex/inverse':
                 self.respond(TEX.inverse(query.get('pdf', [''])[0], query.get('page', ['0'])[0], query.get('x', ['0'])[0], query.get('y', ['0'])[0]))
+            elif url.path == '/api/tex/comments':
+                self.respond(pdf_comments(query.get('pdf', [''])[0]))
             elif url.path == '/api/tex/page':
                 self.respond(TEX.page_sources(query.get('path', [''])[0], query.get('page', ['0'])[0]))
             elif url.path == '/api/library':
@@ -379,6 +430,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/tex':
                 # Outside the workspace lock: waiting for a build must not stall readers.
                 self.respond(tex_action(data))
+                return
+            if self.path == '/api/tex/anchor':
+                self.respond(pdf_anchor(data))
                 return
             with LOCK:
                 if self.path == '/api/stop':

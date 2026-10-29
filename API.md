@@ -152,7 +152,7 @@ All timestamps use ISO-8601 UTC. Status changes append timeline entries, even wi
 
 | Action | Fields | Behavior |
 | --- | --- | --- |
-| `comment-add` | path, body, anchor?, author? | Validate an existing supported text or Word document and append a thread |
+| `comment-add` | path, body, anchor?, author? | Validate an existing supported text or Word document and append a thread; an anchor may carry `pdf: {page, text}` |
 | `comment-edit` | id, body, reply? | Edit the thread body or a named reply |
 | `comment-reply` | id, body, author? | Append a reply |
 | `comment-status` | id, status, author?, note? | Set open/working/resolved and append a status event |
@@ -161,7 +161,7 @@ All timestamps use ISO-8601 UTC. Status changes append timeline entries, even wi
 
 `GET /api/comments` requires the same local authentication as other API routes.
 It returns `{comments: [...]}` with derived `location: {state, line, endLine}` on each thread.
-Repeat `path` to select documents. Without paths, it selects the active document. `all=true` selects all documents.
+Repeat `path` to select documents; a folder selects every document under it. Without paths, it selects the active document. `all=true` selects all documents.
 Repeat `status` to select states. The default is open plus working. `status=all` includes resolved threads.
 Add `format=md` to also receive `markdown`: the threads in the format of `leaf comments --format md`, used for export.
 Location states are attached, changed, ambiguous, and detached. Lines are one-based and null without a unique quote match.
@@ -240,7 +240,9 @@ All routes use the token, Host, and Origin checks. Build state lives in `tex.jso
 - `GET /api/tex`: `{projects: [project]}`. Each project has `root`, `main`, `engine`, `bin`, `auto`, `state` (`idle`, `queued`, `building`, `ok`, `failed`, `outdated`), `outdated`, `changedFiles`, `pdf`, `pdfExists`, `synctex`, and `lastBuild` (`ok`, `seconds`, `errors`, `warnings`, `boxes` with `path`/`line`/`message`, their counts, `log`, `changedDuringBuild`).
 - `POST /api/tex`: `{action, path, ...}`. `enable` takes `main?`, `engine?`, `bin?`, `auto?`; `build` queues a build; `auto` takes `auto: bool`; `disable` unregisters. `enable` and `build` accept `wait` (seconds, at most 600) and then return `{project, finished}` after a build that started after the request. This route does not hold the workspace lock.
 - `GET /api/tex/forward?path=ABS&line=N`: `{pdf, page, x, y, width, height, path, line}` in PDF points from the page's top-left. Without `line`, the start of the file. A line with no output maps to the nearest one.
-- `GET /api/tex/inverse?pdf=ABS&page=N&x=&y=`: `{path, line, page}` for the smallest typeset line box holding the point, else the nearest.
+- `GET /api/tex/inverse?pdf=ABS&page=N&x=&y=`: `{path, line, page}`. Glue and kerns on the baseline of the typeset line holding the point decide the line (a line box itself carries the line where its paragraph ended); else the smallest line box holding the point, else the nearest record.
+- `POST /api/tex/anchor` with `{pdf, start: {page, x, y}, end: {page, x, y}, text}`: the comment anchor on the source behind text selected in the PDF, as `{path, line, endLine, match, anchor}`. `match` is `text` when the selected words were found in the source (through markup, or mostly, for citations and math) and `line` when the anchor quotes the source lines instead. The anchor carries `pdf: {page, text}`; pass it to `comment-add` with `path`.
+- `GET /api/tex/comments?pdf=ABS`: `{pdf, comments: [{id, path, line, page, y, height, letters}]}` for the open and working threads on the project's sources: the band their lines typeset to, and the passage's lowercase letters and digits to find in the page's text.
 - `GET /api/tex/page?path=ABS&page=N`: `{pdf, page, sources: [{path, from, to}]}` in order of appearance.
 
 Sync responses carry `tex` (the same list as `GET /api/tex`) so readers update build status without polling.

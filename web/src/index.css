@@ -833,3 +833,16 @@
 @media (prefers-reduced-motion: reduce) {
   .tex-progress::after { animation: none; width: 100%; opacity: 0.6; }
 }
+
+/* A comment on lines of a live PDF whose exact words could not be found there (math, macros). */
+.pdf-comment-band {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  cursor: pointer;
+  background: color-mix(in oklch, var(--g-yellow) 12%, transparent);
+  border-left: 3px solid color-mix(in oklch, var(--g-yellow) 70%, transparent);
+}
+.pdf-comment-band[data-active] {
+  background: color-mix(in oklch, var(--g-yellow) 26%, transparent);
+}
