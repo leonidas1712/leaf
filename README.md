@@ -54,7 +54,7 @@ Leaf can save a separate copy with the comments written in as Word comments.
 - Read-only PDFs that reload in place when rebuilt; split one beside its sources and it stays put as you change tabs
 - Read-only Word documents (`.docx`) shown as pages with their fonts, tables, images, headers, footers, and footnotes; comment on them like any document, and save a copy with the comments as Word comments
 - Live LaTeX preview: compiles on change into Leaf's own folder, follows the source you read, double-click the PDF to jump to the line, errors link to their lines; recompile with B and pause auto-compile any time (`leaf tex`)
-- Comment on the live PDF: select text and press Comment; the thread is stored on the `.tex` source behind it, and open threads are highlighted in the PDF
+- Comment on the live PDF: select text and press Comment; the thread is stored on the `.tex` source behind it, and open threads are highlighted in the PDF; the robot button in the PDF's toolbar copies a prompt asking an agent to address them all
 - YAML front matter shown as a properties block
 - Outline that follows your reading position
 - Light, dark, or system theme; sans or serif; adjustable size and line length

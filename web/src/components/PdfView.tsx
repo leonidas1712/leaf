@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Copy, FolderSearch, Minus, Plus } from 'lucide-react'
+import { Bot, Check, Copy, FolderSearch, Minus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import { fetchFile, REVEAL_LABEL, texForward, texInverse, type Entry, type TexPosition } from '@/lib/api'
@@ -9,7 +9,7 @@ import { editAt, gotoLine } from '@/lib/jump'
 import { currentPosition, onPosition, type SourcePosition } from '@/lib/tex'
 import { cn } from '@/lib/utils'
 import { TexActions, TexIssues, TexStatus, TexToneBar, texTone } from './TexControls'
-import { SelectionCommentButton } from './CommentsRail'
+import { agentPrompt, SelectionCommentButton } from './CommentsRail'
 import { PdfComments } from './PdfComments'
 
 type Pdfjs = typeof import('pdfjs-dist')
@@ -81,6 +81,7 @@ export function PdfView({
   const scale = useRef(1)
   const project = useLeaf((s) => s.tex.find((p) => p.pdf === path))
   const [follow, setFollow] = useState(readFollow)
+  const [promptCopied, setPromptCopied] = useState(false)
   /** Counts layouts, so comment highlights repaint on the new pages. */
   const [layout, setLayout] = useState(0)
 
@@ -402,6 +403,22 @@ export function PdfView({
           <button type="button" className={button} aria-label={REVEAL_LABEL} title={REVEAL_LABEL} onClick={() => actions.reveal(path)}>
             <FolderSearch className="size-3.5" />
           </button>
+          {project && (
+            <button
+              type="button"
+              className={button}
+              aria-label="Copy prompt for an agent"
+              title={promptCopied ? 'Copied: paste it to your agent' : "Copy a prompt asking an agent to address the comments on this project's sources"}
+              onClick={() =>
+                navigator.clipboard.writeText(agentPrompt(path)).then(() => {
+                  setPromptCopied(true)
+                  setTimeout(() => setPromptCopied(false), 1600)
+                })
+              }
+            >
+              {promptCopied ? <Check className="size-3.5 text-leaf" /> : <Bot className="size-3.5" />}
+            </button>
+          )}
         </span>
         {current && (
           <>
