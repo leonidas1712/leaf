@@ -184,7 +184,7 @@ function FolderSection({
   active: string | null
   expanded: Set<string>
   missing?: string
-  /** Where the folder lives, shown when another sidebar folder has the same name. */
+  /** Where the folder lives: its parent folder. */
   hint?: string
 }) {
   const tree = useMemo(() => buildTree(root, entries, query), [root, entries, query])
@@ -258,14 +258,12 @@ export function Sidebar() {
 
   if (!workspace) return null
   const folders = workspace.folders
-  // Folders sharing a name are told apart by their parent: its name, or its whole path if that collides too.
+  // Each folder shows where it lives: its parent's name, or the parent's whole path when a same-named folder shares that name.
   const folderHints = new Map<string, string>()
+  const parent = (path: string) => path.slice(0, path.lastIndexOf('/'))
   for (const root of folders) {
-    const twins = folders.filter((other) => basename(other) === basename(root))
-    if (twins.length < 2) continue
-    const parent = (path: string) => path.slice(0, path.lastIndexOf('/'))
-    const unique = twins.filter((other) => basename(parent(other)) === basename(parent(root))).length === 1
-    folderHints.set(root, unique ? basename(parent(root)) : displayPath(parent(root)))
+    const shared = folders.filter((other) => basename(other) === basename(root) && basename(parent(other)) === basename(parent(root)))
+    folderHints.set(root, shared.length > 1 ? displayPath(parent(root)) : basename(parent(root)) || '/')
   }
   const loose = workspace.files.filter(
     (path) => !folders.some((folder) => path.startsWith(folder + '/')) && (!search || path.toLowerCase().includes(search.toLowerCase())),
