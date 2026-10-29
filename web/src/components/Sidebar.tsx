@@ -176,6 +176,7 @@ function FolderSection({
   active,
   expanded,
   missing,
+  hint,
 }: {
   root: string
   entries: Map<string, Entry>
@@ -183,6 +184,8 @@ function FolderSection({
   active: string | null
   expanded: Set<string>
   missing?: string
+  /** Where the folder lives, shown when another sidebar folder has the same name. */
+  hint?: string
 }) {
   const tree = useMemo(() => buildTree(root, entries, query), [root, entries, query])
   const open = !!query || expanded.has(root)
@@ -200,6 +203,7 @@ function FolderSection({
           >
             <ChevronRight className={cn('size-3.5 shrink-0 text-ink-faint transition-transform duration-150', open && 'rotate-90')} />
             <span className="truncate">{tree.name}</span>
+            {hint && <span className="min-w-0 shrink truncate text-[11px] font-normal text-ink-faint">{hint}</span>}
             {missing ? (
               <TriangleAlert className="ml-auto size-3.5 shrink-0 text-destructive" aria-label={missing} />
             ) : (
@@ -254,6 +258,15 @@ export function Sidebar() {
 
   if (!workspace) return null
   const folders = workspace.folders
+  // Folders sharing a name are told apart by their parent: its name, or its whole path if that collides too.
+  const folderHints = new Map<string, string>()
+  for (const root of folders) {
+    const twins = folders.filter((other) => basename(other) === basename(root))
+    if (twins.length < 2) continue
+    const parent = (path: string) => path.slice(0, path.lastIndexOf('/'))
+    const unique = twins.filter((other) => basename(parent(other)) === basename(parent(root))).length === 1
+    folderHints.set(root, unique ? basename(parent(root)) : displayPath(parent(root)))
+  }
   const loose = workspace.files.filter(
     (path) => !folders.some((folder) => path.startsWith(folder + '/')) && (!search || path.toLowerCase().includes(search.toLowerCase())),
   )
@@ -392,6 +405,7 @@ export function Sidebar() {
             {folders.map((root) => (
               <FolderSection
                 key={root}
+                hint={folderHints.get(root)}
                 root={root}
                 entries={entries}
                 query={search}
