@@ -36,7 +36,8 @@ scratch folders, and shared boards. Leaf gathers it into one persistent reading 
 - **Comments.** Select text and leave a comment, Google Docs style. Agents read the threads with `leaf comments`,
   edit the file, and reply or resolve, so you can iterate on a document with any agent.
 
-Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in the documents.
+Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in the documents. For Word documents,
+Leaf can save a separate copy with the comments written in as Word comments.
 
 ## Features
 
@@ -50,6 +51,7 @@ Leaf never edits, moves, or deletes your files. Comments live in Leaf, not in th
 - Syntax highlighting with one-click copy
 - LaTeX (`.tex`, `.bib`) sources, highlighted and commentable like any document
 - Read-only PDFs that reload in place when rebuilt; split one beside its sources and it stays put as you change tabs
+- Read-only Word documents (`.docx`) shown as pages with their fonts, tables, images, headers, footers, and footnotes; comment on them like any document, and save a copy with the comments as Word comments
 - Live LaTeX preview: compiles on change into Leaf's own folder, follows the source you read, double-click the PDF to jump to the line, errors link to their lines; recompile with B and pause auto-compile any time (`leaf tex`)
 - YAML front matter shown as a properties block
 - Outline that follows your reading position
@@ -262,6 +264,8 @@ leaf comment resolve k_ID 'Clarified the explanation.' --author codex
 
 To export a document's comments, use the download button above the comments: **Copy all as Markdown** or **Download as .md**.
 Both include resolved threads, in the same format as `leaf comments PATH --status all`.
+For a Word document, **Save copy with Word comments** writes `NAME (Leaf comments).docx` beside it, with the open threads
+as Word comments on their passages, so colleagues see them in Word. Agents use `leaf comments FILE.docx --word`.
 
 Use `--all` to list comments across documents. Status changes retain a UTC timeline with the author and optional note.
 Quote anchors report current line hints, or detached/ambiguous state when no unique match exists.

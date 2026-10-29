@@ -12,6 +12,7 @@ import webbrowser
 import fcntl
 from workspace import Workspace, DOCUMENT_EXTENSIONS, TEXT_EXTENSIONS
 from comments import list_comments, markdown_comments
+from docx_comments import export_word_comments
 from reveal import reveal_path
 from editing import Editing, ACTIONS
 from versions import Changed
@@ -29,8 +30,9 @@ SERVER_INSTANCE = secrets.token_urlsafe(12)
 FILE_IDS = {}
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'}
 EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
-# Compiled papers run larger than text; everything else keeps the 10 MB reading limit.
-PDF_LIMIT = 100 * 1024 * 1024
+# Compiled papers and Word files (zipped, with their images) run larger than text; everything
+# else keeps the 10 MB reading limit.
+READ_LIMITS = {'.pdf': (100, 'PDF'), '.docx': (50, 'Word document')}
 SKIP = {'node_modules', 'vendor', 'venv', '__pycache__'}
 TOKEN = secrets.token_urlsafe(32)
 LOCK = threading.RLock()
@@ -39,8 +41,25 @@ COMMANDS = {}
 FILES = {}
 ROOTS = {}
 COMMENT_REVISIONS = set()
+# Word copies written with Leaf comments, which Reveal may show although no tab has them.
+EXPORTS = set()
 EDITOR = None
 TEX = None
+
+
+def word_comments(data):
+    """Copy a Word document beside itself with its open threads (or all, with resolved) as Word comments."""
+    path = data.get('path')
+    if not isinstance(path, str) or not path.lower().endswith('.docx'):
+        raise ValueError('Choose a Word document.')
+    statuses = None if data.get('resolved') else ['open', 'working']
+    threads = list_comments(WORKSPACE.data, [path], statuses)
+    # Only documents with Leaf comments are written beside, so the path is one Leaf already knows.
+    if not threads:
+        raise ValueError('This document has no comments to export.')
+    result = export_word_comments(path, threads)
+    EXPORTS.add(result['path'])
+    return result
 
 
 def editor():
@@ -293,10 +312,9 @@ class Handler(BaseHTTPRequestHandler):
                 path = FILES.get(query.get('id', [''])[0])
                 if not path or path.resolve() != path or not path.is_file():
                     raise ValueError('File grant is unavailable.')
-                if path.suffix.lower() == '.pdf' and path.stat().st_size > PDF_LIMIT:
-                    raise ValueError('PDF exceeds the 100 MB reading limit.')
-                if path.suffix.lower() != '.pdf' and path.stat().st_size > 10 * 1024 * 1024:
-                    raise ValueError('File exceeds the 10 MB reading limit.')
+                megabytes, kind = READ_LIMITS.get(path.suffix.lower(), (10, 'File'))
+                if path.stat().st_size > megabytes * 1024 * 1024:
+                    raise ValueError(f'{kind} exceeds the {megabytes} MB reading limit.')
                 with LOCK:
                     raw = path.read_bytes()
                     if path.suffix.lower() in TEXT_EXTENSIONS:
@@ -367,9 +385,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({'status': 'stopping'})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                 elif self.path == '/api/reveal':
-                    # Compiled LaTeX PDFs are known to Leaf even before a tab shows them.
+                    # Compiled LaTeX PDFs and Word copies with comments are known to Leaf before a tab shows them.
                     compiled = [project['pdf'] for project in TEX.statuses() if project['pdfExists']]
-                    self.respond(reveal_path(data.get('path'), dict(WORKSPACE.data, files=WORKSPACE.data['files'] + compiled), FILES.values()))
+                    known = WORKSPACE.data['files'] + compiled + sorted(EXPORTS)
+                    self.respond(reveal_path(data.get('path'), dict(WORKSPACE.data, files=known), FILES.values()))
+                elif self.path == '/api/comments/word':
+                    self.respond(word_comments(data))
                 elif self.path == '/api/save':
                     self.respond(editor().save(data))
                 elif self.path == '/api/action' and data.get('action') in ACTIONS:

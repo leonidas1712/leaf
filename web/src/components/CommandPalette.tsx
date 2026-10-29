@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { BookOpen, ChevronLeft, ChevronRight, ClipboardCopy, Keyboard, FileOutput, Pause, Play, Code2, Columns2, Copy, Download, FileText, Pin, PinOff, Search, FolderPlus, FolderSearch, FilePlus, Layers, Library, Moon, PanelLeft, RefreshCw, Sun, X } from 'lucide-react'
 import { REVEAL_LABEL } from '@/lib/api'
 import { trail } from '@/lib/collections'
-import { exportComments } from './CommentsRail'
+import { exportComments, exportToWord } from './CommentsRail'
 import { openFind } from './FindBar'
 import { togglePin } from './pins'
 import { groupStyle } from './groups'
@@ -16,7 +16,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { basename, displayPath } from '@/lib/paths'
-import { actions, currentSplit, getState, setState, DOCUMENT_FILE, stepTab, useLeaf } from '@/lib/store'
+import { actions, currentSplit, getState, isDocx, setState, DOCUMENT_FILE, stepTab, useLeaf } from '@/lib/store'
 import { projectFor, recompile, setAuto, showPreview } from '@/lib/tex'
 
 /**
@@ -130,6 +130,9 @@ export function CommandPalette() {
                 { label: 'Download unresolved comments as .md', icon: Download, run: () => exportComments(workspace.active!, 'file', true) },
                 { label: 'Copy comments as Markdown', icon: ClipboardCopy, run: () => exportComments(workspace.active!, 'clipboard') },
                 { label: 'Download comments as .md', icon: Download, run: () => exportComments(workspace.active!, 'file') },
+                ...(isDocx(workspace.active)
+                  ? [{ label: 'Save copy with Word comments', icon: FileText, keywords: 'docx word export', run: () => exportToWord(workspace.active!) }]
+                  : []),
               ]
             : []),
           { label: 'Copy path of current document', icon: Copy, run: () => navigator.clipboard.writeText(workspace.active!) },

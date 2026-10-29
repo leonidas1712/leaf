@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { commentsMarkdown, type Comment } from '@/lib/api'
+import { commentsMarkdown, exportWordComments, type Comment } from '@/lib/api'
 import { buildIndex, rangeBetween, rememberSelection, resolve, selectionAnchor, selectionIn, shareHighlight, type TextIndex } from '@/lib/anchors'
 import { basename, displayPath } from '@/lib/paths'
 import { actions, getState, isPdf, setState, useLeaf } from '@/lib/store'
@@ -42,6 +42,20 @@ export async function exportComments(path: string, to: 'clipboard' | 'file', unr
     link.click()
     setTimeout(() => URL.revokeObjectURL(link.href), 1000)
     toast(`Exported ${what} to ${link.download}`)
+  } catch (error) {
+    toast((error as Error).message)
+  }
+}
+
+/** Save a copy of a Word document with its threads as Word comments, for colleagues who use Word. */
+export async function exportToWord(path: string, resolved = false) {
+  try {
+    const result = await exportWordComments(path, resolved)
+    const count = result.placed + result.unplaced
+    const note = result.unplaced ? ` (${result.unplaced} at the start, as their passages could not be found)` : ''
+    toast(`Saved ${count} comment${count === 1 ? '' : 's'} into ${basename(result.path)}${note}`, {
+      action: { label: 'Reveal', onClick: () => actions.reveal(result.path) },
+    })
   } catch (error) {
     toast((error as Error).message)
   }

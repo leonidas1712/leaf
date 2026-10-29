@@ -13,6 +13,8 @@ def configure(child, name):
         child.add_argument('--all', action='store_true', help='Include every document')
         child.add_argument('--status', choices=['open', 'working', 'resolved', 'all'])
         child.add_argument('--format', choices=['md', 'json'], default='md')
+        child.add_argument('--word', action='store_true',
+                           help='Save a copy of a .docx beside it with these threads as Word comments (open ones; all with --status all)')
         return
     operations = child.add_subparsers(dest='comment_action', required=True)
     for operation in ('add', 'reply', 'working', 'resolve', 'reopen', 'edit', 'rm', 'anchor'):
@@ -37,6 +39,14 @@ def run(args, client):
     """List without starting a stopped reader, or persist a mutation through the server."""
     if args.action == 'comments':
         paths = [str(Path(path).expanduser().resolve()) for path in args.paths]
+        if args.word:
+            if len(paths) != 1 or not paths[0].lower().endswith('.docx'):
+                raise ValueError('--word takes one .docx path.')
+            client.start()
+            result = client.request('/api/comments/word', {'path': paths[0], 'resolved': args.status == 'all'})
+            client.output(result if args.json else f"Saved {result['placed'] + result['unplaced']} comments into {result['path']}"
+                          + (f" ({result['unplaced']} at the start: passage not found)" if result['unplaced'] else ''), args.json)
+            return
         statuses = [args.status] if args.status and args.status != 'all' else (None if args.status == 'all' else ['open', 'working'])
         info = client.running()
         if info:

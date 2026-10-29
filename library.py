@@ -4,7 +4,7 @@ import secrets
 from groups import COLORS, apply_group_action, assign_tabs, open_group
 
 
-DOCUMENT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.tex', '.bib', '.pdf'}
+DOCUMENT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.tex', '.bib', '.pdf', '.docx'}
 
 
 def resolve_collection(data, reference):

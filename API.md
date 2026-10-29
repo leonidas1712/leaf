@@ -152,7 +152,7 @@ All timestamps use ISO-8601 UTC. Status changes append timeline entries, even wi
 
 | Action | Fields | Behavior |
 | --- | --- | --- |
-| `comment-add` | path, body, anchor?, author? | Validate an existing supported text document and append a thread |
+| `comment-add` | path, body, anchor?, author? | Validate an existing supported text or Word document and append a thread |
 | `comment-edit` | id, body, reply? | Edit the thread body or a named reply |
 | `comment-reply` | id, body, author? | Append a reply |
 | `comment-status` | id, status, author?, note? | Set open/working/resolved and append a status event |
@@ -169,6 +169,11 @@ Document-level comments have attached state and null lines. Missing files do not
 Quote matching collapses whitespace and retries with simplified Markdown removal while retaining source offsets.
 Prefix and suffix distinguish duplicate matches when one candidate has a unique highest context score.
 The location reader is bounded to 10 MiB per document. It reports detached for unreadable or oversized text.
+Word documents are read as one line per paragraph (body, table cells, then footnotes), with heading styles as headings.
+
+`POST /api/comments/word` with `{path, resolved?}` writes a copy of a `.docx` beside it, named `NAME (Leaf comments).docx`
+(numbered when taken), with the document's open and working threads (all, with `resolved: true`) as Word comments.
+It returns `{path, placed, unplaced, exported}`; unplaced threads attach to the first paragraph. The original is unchanged.
 
 Quote-only creation fills empty prefix, suffix, and heading fields when the simplified Markdown view has a unique match.
 Explicit nonempty context remains unchanged. Generated prefix and suffix contain at most 32 characters each.

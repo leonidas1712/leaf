@@ -19,7 +19,7 @@ import { REVEAL_LABEL } from '@/lib/api'
 import { displayPath, tabLabels } from '@/lib/paths'
 import { closeEditor, isDirty } from '@/lib/drafts'
 import { editAt } from '@/lib/jump'
-import { actions, currentSplit, isPdf, reader, setState, useLeaf } from '@/lib/store'
+import { actions, currentSplit, isReadOnly, reader, setState, useLeaf } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { PinMenuItem } from './pins'
 import { GroupMenuItems, groupStyle } from './groups'
@@ -302,7 +302,7 @@ export function TabStrip() {
       </div>
       {workspace && (
         <div className="mb-1.5 flex shrink-0 items-center gap-1 self-center pl-2">
-          {active && !isPdf(active) && (
+          {active && !isReadOnly(active) && (
             <ToggleGroup
               type="single"
               size="sm"

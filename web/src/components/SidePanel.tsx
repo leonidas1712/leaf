@@ -1,11 +1,11 @@
 import { useState, type RefObject } from 'react'
-import { Bot, Check, CheckCheck, ClipboardCopy, Download, MessageSquarePlus } from 'lucide-react'
+import { Bot, Check, CheckCheck, ClipboardCopy, Download, FileText, MessageSquarePlus } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { setState, useLeaf, type Heading } from '@/lib/store'
+import { isDocx, setState, useLeaf, type Heading } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { agentPrompt, CommentsRail, documentComments, exportComments, startComment } from './CommentsRail'
+import { agentPrompt, CommentsRail, documentComments, exportComments, exportToWord, startComment } from './CommentsRail'
 import { HistoryPanel } from './HistoryPanel'
 import { Outline } from './Outline'
 
@@ -136,6 +136,14 @@ export function SidePanel({
                   <DropdownMenuItem onSelect={() => exportComments(path, 'file')}>
                     <Download /> Download all .md
                   </DropdownMenuItem>
+                  {isDocx(path) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled={!unresolved} onSelect={() => exportToWord(path)}>
+                        <FileText /> Save copy with Word comments
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

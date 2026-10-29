@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom'
 import { attachImageResize, frameImage } from '@/lib/images'
 import { fetchDocumentImage, fetchFile, type Entry, type ReaderPrefs } from '@/lib/api'
+import { Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { enhance, escapeHTML, highlight, isMarkdown, readingStats, renderMarkdown, resolveRelative } from '@/lib/markdown'
 import { renderDiagram } from '@/lib/mermaid'
@@ -12,6 +13,7 @@ import type { SourceRange } from '@/lib/jump'
 import { findInSource } from '@/lib/sourcePosition'
 import { takeLine } from '@/lib/jump'
 import { isTex, reportPosition } from '@/lib/tex'
+import { DOCX_LIMIT, isDocx, renderDocx } from '@/lib/docx'
 import { TexBar } from './TexControls'
 import { EditBar } from './EditBar'
 import { FindBar } from './FindBar'
@@ -94,6 +96,10 @@ function showLine(code: HTMLElement, viewport: HTMLElement, line: number) {
   flashTimer = setTimeout(() => shareHighlight('leaf-line', lineFlash, []), 1600)
 }
 
+/** Word page zoom per document for this browser session, as a share of the printed size; absent means fit. */
+const docxZooms = new Map<string, number>()
+const DOCX_ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+
 const CODE_LANGUAGE: Record<string, string> = { json: 'json', yaml: 'yaml', yml: 'yaml', csv: 'plaintext', log: 'plaintext', txt: 'plaintext', tex: 'latex', bib: 'latex' }
 /**
  * The reading surface. Rendering is sequenced: a newer request always wins, scroll restores
@@ -160,7 +166,7 @@ export function DocumentView({
   }, [])
 
   const scrollToHeading = useCallback((target: string) => {
-    const heading = [...(article.current?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? [])].find(
+    const heading = [...(article.current?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,[data-heading]') ?? [])].find(
       (node) => node.id === target || node.textContent?.replace(/#$/, '').trim() === target,
     )
     if (!heading) return false
@@ -178,7 +184,8 @@ export function DocumentView({
     const node = article.current
     const view = viewport.current
     const shown = shownRef.current
-    if (!node || !view || !shown || shown.path !== path || displayed.current !== path) return null
+    // Word documents have no source to open.
+    if (!node || !view || !shown || shown.path !== path || displayed.current !== path || isDocx(path)) return null
     const range = selectionIn(node)
     const code = shown.code ? node.querySelector<HTMLElement>('pre > code') : null
     if (code) {
@@ -261,6 +268,21 @@ export function DocumentView({
     displayed.current = null
     ;(async () => {
       try {
+        if (isDocx(path)) {
+          if (grantError || !grantId) throw new Error(grantError ?? 'File is unavailable.')
+          const blob = await fetchFile(grantId, controller.signal)
+          if (blob.size > DOCX_LIMIT) throw new Error('This Word document exceeds the 50 MB reading limit.')
+          const scratch = document.createElement('div')
+          const headings = await renderDocx(blob, scratch)
+          if (stale()) return
+          const text = [...scratch.querySelectorAll('p')].map((paragraph) => paragraph.textContent).join('\n')
+          urls.current.forEach(URL.revokeObjectURL)
+          urls.current = []
+          setFailure(null)
+          setRendered({ path, text, code: false, html: scratch.innerHTML, stats: readingStats(text), diagrams: [] })
+          setOutline({ headings, status: `${readingStats(text).words.toLocaleString()} words` })
+          return
+        }
         let text = preview
         if (text === null) {
           if (grantError || !grantId) throw new Error(grantError ?? 'File is unavailable.')
@@ -483,6 +505,39 @@ export function DocumentView({
   }
 
   const current = rendered?.path === path ? rendered : null
+  const docx = isDocx(path)
+  // Word pages keep their printed width; a narrow pane shrinks them to fit instead of scrolling sideways.
+  const [pageWidth, setPageWidth] = useState(0)
+  useLayoutEffect(() => {
+    if (!docx || !current) return
+    const page = article.current?.querySelector<HTMLElement>('section')
+    setPageWidth(page?.offsetWidth ?? 0)
+  }, [docx, current])
+  const fit = pageWidth ? Math.min(1, width / pageWidth) : 1
+  const [chosenZoom, setChosenZoom] = useState<number | undefined>(() => docxZooms.get(path))
+  useEffect(() => setChosenZoom(docxZooms.get(path)), [path])
+  const docxZoom = chosenZoom ?? fit
+  const changeZoom = (next: number | undefined) => {
+    if (next === undefined) docxZooms.delete(path)
+    else docxZooms.set(path, next)
+    setChosenZoom(next)
+  }
+  const stepZoom = (direction: 1 | -1) =>
+    changeZoom(
+      direction > 0
+        ? (DOCX_ZOOMS.find((z) => z > docxZoom + 0.001) ?? 3)
+        : ([...DOCX_ZOOMS].reverse().find((z) => z < docxZoom - 0.001) ?? 0.5),
+    )
+  // Zooming keeps the same part of the document in view.
+  const zoomedFrom = useRef<{ zoom: number; ratio: number } | null>(null)
+  useLayoutEffect(() => {
+    const view = viewport.current
+    const before = zoomedFrom.current
+    if (view && before && before.zoom !== docxZoom && view.scrollHeight) view.scrollTop = before.ratio * view.scrollHeight
+    zoomedFrom.current = view ? { zoom: docxZoom, ratio: view.scrollHeight ? view.scrollTop / view.scrollHeight : 0 } : null
+  }, [docxZoom])
+  const zoomButton =
+    'grid size-6 cursor-pointer place-items-center rounded-md text-ink-muted transition-colors hover:bg-accent hover:text-ink disabled:pointer-events-none disabled:opacity-40'
   const failed = failure?.path === path ? failure : null
   const loading = !current && !failed
 
@@ -519,10 +574,28 @@ export function DocumentView({
         )}
         <div className="min-w-0 flex-1">
           <div
-            className="mx-auto"
-            style={{ maxWidth: prefs.width === 'full' ? 'none' : prefs.fontSize * (prefs.width === 'wide' ? 58 : 42) }}
+            className={cn('mx-auto', docx && 'overflow-x-auto')}
+            style={{ maxWidth: prefs.width === 'full' || docx ? 'none' : prefs.fontSize * (prefs.width === 'wide' ? 58 : 42) }}
           >
             <DocumentHeader path={path} stats={current?.stats} source={source} updatedAt={updatedAt} />
+            {docx && current && (
+              <div className="print-hide -mt-1 mb-2 flex justify-end gap-0.5 text-[12px] text-ink-muted">
+                <button type="button" className={zoomButton} aria-label="Zoom out" title="Zoom out" disabled={docxZoom <= 0.5} onClick={() => stepZoom(-1)}>
+                  <Minus className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="h-6 min-w-12 cursor-pointer rounded-md px-1 tabular-nums transition-colors hover:bg-accent hover:text-ink"
+                  title={chosenZoom === undefined ? `Fit to the pane: ${Math.round(docxZoom * 100)}% of the printed size` : 'Fit to the pane'}
+                  onClick={() => changeZoom(undefined)}
+                >
+                  {chosenZoom === undefined ? 'Fit' : `${Math.round(docxZoom * 100)}%`}
+                </button>
+                <button type="button" className={zoomButton} aria-label="Zoom in" title="Zoom in" disabled={docxZoom >= 3} onClick={() => stepZoom(1)}>
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            )}
             {isTex(path) && <TexBar path={path} />}
             {mode === 'edit' && draft && (
               <>
@@ -551,8 +624,8 @@ export function DocumentView({
               onClick={onClick}
               data-font={prefs.font}
               data-source={source || undefined}
-              style={{ '--body-size': `${prefs.fontSize}px`, '--measure': 'none' } as React.CSSProperties}
-              className={loading || failed || mode === 'edit' ? 'hidden' : 'prose-leaf'}
+              style={{ '--body-size': `${prefs.fontSize}px`, '--measure': 'none', zoom: docx ? docxZoom : undefined } as React.CSSProperties}
+              className={loading || failed || mode === 'edit' ? 'hidden' : docx ? 'docx-leaf' : 'prose-leaf'}
             />
           </div>
         </div>

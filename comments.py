@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 import re
 from pathlib import Path
 import uuid
+import zipfile
+from xml.etree import ElementTree
+from docx_text import docx_text, is_docx
 
 
 def text_field(value, name, limit=50000, empty=False):
@@ -197,14 +200,17 @@ def locate(thread, source):
 
 
 def read_document(path):
-    """Read bounded UTF-8 text or return unavailable without losing stored comments."""
+    """Read bounded UTF-8 text, or a Word document's paragraphs, or return unavailable without
+    losing stored comments."""
     try:
         if not Path(path).is_file():
             return None
+        if is_docx(path):
+            return docx_text(path)
         with Path(path).open('rb') as stream:
             raw = stream.read(10 * 1024 * 1024 + 1)
         return raw.decode('utf-8') if len(raw) <= 10 * 1024 * 1024 else None
-    except (OSError, UnicodeError):
+    except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, ElementTree.ParseError):
         return None
 
 
@@ -228,7 +234,8 @@ def markdown_comments(threads):
         lines.append('No matching comments.')
     for thread in threads:
         location = thread['location']
-        where = f"{location['state']} · line {location['line']}" if location['line'] else location['state']
+        unit = 'paragraph' if is_docx(thread['path']) else 'line'
+        where = f"{location['state']} · {unit} {location['line']}" if location['line'] else location['state']
         lines.extend([f"## {thread['id']} · {thread['status']} · {where}", '', thread['path'], ''])
         if thread['anchor']:
             lines.append('> ' + thread['anchor']['quote'].replace('\n', '\n> '))

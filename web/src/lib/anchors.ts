@@ -1,6 +1,7 @@
 /*
  * Quote anchors over the rendered document. Text is indexed with whitespace collapsed, skipping
- * Leaf's own chrome (heading "#" links, code-block buttons, diagram panels), so the same passage
+ * Leaf's own chrome (heading "#" links, code-block buttons, diagram panels) and what Word pages
+ * repeat or renumber (headers, footers, footnote numbers, marked data-leaf-skip), so the same passage
  * produces the same quote however the Markdown wraps. Resolution prefers an exact quote whose
  * context matches best, then falls back to the span between the old prefix and suffix (the passage
  * was edited), and otherwise reports the comment as detached. Comments are never dropped.
@@ -9,10 +10,10 @@ import type { CommentAnchor } from './api'
 
 /** The focused reading pane's rendered document: where comment shortcuts and selections apply. */
 export function focusedArticle() {
-  return document.querySelector<HTMLElement>('[data-pane-focused] article.prose-leaf')
+  return document.querySelector<HTMLElement>('[data-pane-focused] :is(article.prose-leaf, article.docx-leaf)')
 }
 
-const SKIP = '.heading-anchor, .code-bar, .diagram, button, script, style'
+const SKIP = '.heading-anchor, .code-bar, .diagram, button, script, style, [data-leaf-skip]'
 const CONTEXT = 32
 
 export interface TextIndex {
@@ -67,9 +68,10 @@ function indexOf(index: TextIndex, container: Node, offset: number, root: HTMLEl
 
 function headingTrail(root: HTMLElement, at: Node): string | undefined {
   const trail: { level: number; text: string }[] = []
-  for (const heading of root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')) {
+  // Word headings are styled paragraphs that carry their level in data-heading.
+  for (const heading of root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,[data-heading]')) {
     if (heading.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_PRECEDING) break
-    const level = Number(heading.tagName[1])
+    const level = Number(heading.dataset.heading ?? heading.tagName[1])
     while (trail.length && trail.at(-1)!.level >= level) trail.pop()
     trail.push({ level, text: heading.textContent?.replace(/#$/, '').trim() ?? '' })
   }

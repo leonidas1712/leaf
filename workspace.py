@@ -10,8 +10,10 @@ from comments import apply_comment_action
 from groups import apply_group_action, assign_tabs, group_tabs, resolve_group
 
 TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.csv', '.log', '.tex', '.bib'}
-# Documents a tab can show: text, plus PDFs, which are read-only and take no comments.
-DOCUMENT_EXTENSIONS = TEXT_EXTENSIONS | {'.pdf'}
+# Documents a tab can show: text, plus PDFs and Word documents, which are read-only. Word
+# documents take comments on their rendered text; PDFs take none.
+DOCUMENT_EXTENSIONS = TEXT_EXTENSIONS | {'.pdf', '.docx'}
+COMMENT_EXTENSIONS = TEXT_EXTENSIONS | {'.docx'}
 # Where a split places its target document: the layout, and the target's pane index.
 SPLIT_SIDES = {'left': ('columns', 0), 'right': ('columns', 1), 'up': ('rows', 0), 'down': ('rows', 1)}
 
@@ -263,7 +265,7 @@ class Workspace:
                 data['expanded'].append(path)
             data['recentFolders'] = [path] + [p for p in data['recentFolders'] if p != path][:29]
         elif action.startswith('comment-'):
-            apply_comment_action(data, command, TEXT_EXTENSIONS)
+            apply_comment_action(data, command, COMMENT_EXTENSIONS)
         elif action == 'source-update':
             if path not in data['sources'] or not isinstance(command.get('source'), dict):
                 raise ValueError('Source must already exist.')

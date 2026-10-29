@@ -35,9 +35,12 @@ import {
 } from './api'
 import type { SourceRange } from './jump'
 
-/** Files a tab can show. PDFs among them are read-only and take no comments. */
-export const DOCUMENT_FILE = /\.(md|markdown|txt|json|ya?ml|csv|log|tex|bib|pdf)$/i
+/** Files a tab can show. PDFs and Word documents are read-only; PDFs also take no comments. */
+export const DOCUMENT_FILE = /\.(md|markdown|txt|json|ya?ml|csv|log|tex|bib|pdf|docx)$/i
 export const isPdf = (path: string) => /\.pdf$/i.test(path)
+export const isDocx = (path: string) => /\.docx$/i.test(path)
+/** Documents Leaf shows but never edits. */
+export const isReadOnly = (path: string) => isPdf(path) || isDocx(path)
 
 export interface Heading {
   id: string

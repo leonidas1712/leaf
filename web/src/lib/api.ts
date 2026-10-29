@@ -264,6 +264,11 @@ export async function commentsMarkdown(path: string, unresolved = false): Promis
   return { count: result.comments.length, markdown: result.markdown }
 }
 
+/** A copy of a Word document beside it, with its threads written in as Word comments. */
+export function exportWordComments(path: string, resolved = false) {
+  return postJSON<{ path: string; placed: number; unplaced: number }>('/api/comments/word', { path, resolved })
+}
+
 export function texAction(body: { action: 'enable' | 'disable' | 'build' | 'auto'; path: string; auto?: boolean; wait?: number }) {
   return postJSON<{ project?: TexProject; finished?: boolean }>('/api/tex', body)
 }

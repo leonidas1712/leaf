@@ -217,6 +217,34 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(document.read_text(), '# Plan\nA **bold** statement.')
                 server.SESSIONS.clear()
 
+    def test_word_documents_open_take_comments_and_export_through_the_cli(self):
+        """A .docx opens read-only, takes comments by paragraph, and exports a Word copy beside it."""
+        import os
+        import subprocess
+        import sys
+        from test_docx import write_docx
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            document = root / 'memo.docx'
+            write_docx(document)
+            workspace = Workspace(root / 'workspace.json')
+            workspace.action({'action': 'open-file', 'path': str(document)})
+            (root / 'connection.json').write_text(json.dumps({'url': self.url, 'token': server.TOKEN}))
+            env = dict(os.environ, LEAF_STATE_DIR=str(root))
+            leaf = [sys.executable, str(server.BASE / 'leaf.py')]
+            with patch.object(server, 'WORKSPACE', workspace), patch.object(server, 'EXPORTS', set()):
+                result = subprocess.run(leaf + ['comment', 'add', str(document), 'Which?', '--quote', 'all three regions'], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                listed = subprocess.run(leaf + ['comments', str(document)], env=env, capture_output=True, text=True)
+                self.assertIn('attached · paragraph 2', listed.stdout)
+                result = subprocess.run(leaf + ['comments', str(document), '--word', '--json'], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                copy = json.loads(result.stdout)['path']
+                self.assertEqual(Path(copy).name, 'memo (Leaf comments).docx')
+                self.assertEqual(server.EXPORTS, {copy})
+                code, _ = self.request('/api/comments/word', {'path': str(root / 'other.docx')}, {'X-Leaf-Token': server.TOKEN})
+                self.assertEqual(code, 400)
+
     def test_reveal_endpoint_and_cli_are_authenticated_and_revision_free(self):
         """Reveal rejects foreign callers and launches known paths without a workspace commit."""
         import os

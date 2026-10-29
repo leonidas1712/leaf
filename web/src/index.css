@@ -707,6 +707,32 @@
   font-size: 13px;
   color: #777;
 }
+/* Word documents: docx-preview's pages, on the reading paper instead of its grey wrapper. */
+.docx-leaf {
+  margin-top: 8px;
+}
+.docx-leaf > div {
+  background: none !important;
+  padding: 0 !important;
+  /* Zoomed wider than the pane, pages start at the left edge so all of them can be scrolled to. */
+  align-items: safe center !important;
+}
+.docx-leaf > div > section {
+  margin-bottom: 24px !important;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.06) !important;
+}
+.docx-leaf [data-heading] {
+  scroll-margin-top: 24px;
+}
+/* Undo the base reset where Word relies on browser defaults: footnote lists number, images flow inline. */
+.docx-leaf ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.docx-leaf img {
+  display: inline;
+}
+
 /* pdf.js text layer, trimmed from pdf_viewer.css: transparent text over the canvas, for selection. */
 .textLayer {
   position: absolute;

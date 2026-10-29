@@ -171,6 +171,11 @@ Pass your own name with `--author`, such as `codex` or `claude`.
 Without this flag, the CLI uses `LEAF_AUTHOR`, then `agent`.
 Without paths, `leaf comments` reads the active document. The default filter includes open and working threads.
 `--all` includes all documents. `--status all` also includes resolved threads.
+On a Word document (`.docx`), line hints count paragraphs: body paragraphs and table cells in order, then footnotes.
+Headings are Word's heading styles. Leaf cannot edit `.docx` files; change them with a library such as `python-docx`.
+`leaf comments FILE.docx --word` writes `FILE (Leaf comments).docx` beside it, never changing the original. The
+open and working threads become Word comments on their passages, with replies in the same comment. Threads whose
+passage is no longer found attach to the first paragraph and quote it. Add `--status all` to include resolved ones.
 Comment listing works while Leaf is stopped. Mutations start the service without opening a browser.
 
 For each requested comment:
@@ -342,7 +347,8 @@ Merge and competing-edit checks require `diff3`, included on macOS and available
 
 The browser saves with a SHA-256 hash of the bytes it loaded. A stale hash returns HTTP 409 and the current text.
 Restore and merge also check the current hash before writing. Writes use a temporary file and atomic replacement, retaining file permissions.
-Only supported UTF-8 documents up to 10 MiB can be edited. PDFs (up to 100 MiB) are read-only and take no comments; comment on their source. Leaf state files and Aboard cached documents remain read-only.
+Only supported UTF-8 documents up to 10 MiB can be edited. PDFs (up to 100 MiB) are read-only and take no comments; comment on their source.
+Word documents (`.docx`, up to 50 MiB) are read-only and take comments on their rendered text. Leaf state files and Aboard cached documents remain read-only.
 All connected readers share one disk document; browser drafts are separate from saved history.
 
 The service observes registered files, tabs, and collection documents every second while running.

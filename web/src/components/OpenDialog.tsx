@@ -60,7 +60,7 @@ export function OpenDialog() {
                 ? 'Link a document from anywhere on disk. It stays where it is.'
                 : folder
                   ? 'Its Markdown and text files join the sidebar. Your open tabs stay put.'
-                  : 'Markdown, LaTeX, PDF, text, JSON, YAML, CSV, or log files.'}{' '}
+                  : 'Markdown, LaTeX, PDF, Word, text, JSON, YAML, CSV, or log files.'}{' '}
               Agents can do this with{' '}
               <code className="font-mono text-[12px] text-ink">
                 {target ? `leaf collection add "${where.replaceAll(' › ', '/')}" PATH` : 'leaf open PATH'}
