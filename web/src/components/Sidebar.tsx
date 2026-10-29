@@ -193,24 +193,31 @@ function FolderSection({
   return (
     <div className="mb-1">
       <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={() => toggleExpanded(root)}
-            title={displayPath(root)}
-            className="group/root flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-accent"
-          >
-            <ChevronRight className={cn('size-3.5 shrink-0 text-ink-faint transition-transform duration-150', open && 'rotate-90')} />
-            <span className="truncate">{tree.name}</span>
-            {hint && <span className="min-w-0 shrink truncate text-[11px] font-normal text-ink-faint">{hint}</span>}
-            {missing ? (
-              <TriangleAlert className="ml-auto size-3.5 shrink-0 text-destructive" aria-label={missing} />
-            ) : (
-              <span className="ml-auto text-[11px] font-normal text-ink-faint tabular-nums">{tree.documents}</span>
-            )}
-          </button>
-        </ContextMenuTrigger>
+        <Tooltip>
+          <ContextMenuTrigger asChild>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => toggleExpanded(root)}
+                className="group/root flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-accent"
+              >
+                <ChevronRight className={cn('size-3.5 shrink-0 text-ink-faint transition-transform duration-150', open && 'rotate-90')} />
+                {/* The parent gives way first in a narrow sidebar, so the folder's own name stays readable. */}
+                <span className="max-w-[70%] shrink-0 truncate">{tree.name}</span>
+                {hint && <span className="min-w-0 truncate text-[11px] font-normal text-ink-faint">{hint}</span>}
+                {missing ? (
+                  <TriangleAlert className="ml-auto size-3.5 shrink-0 text-destructive" aria-label={missing} />
+                ) : (
+                  <span className="ml-auto text-[11px] font-normal text-ink-faint tabular-nums">{tree.documents}</span>
+                )}
+              </button>
+            </TooltipTrigger>
+          </ContextMenuTrigger>
+          <TooltipContent side="right" className="max-w-none font-mono text-[11.5px]">
+            {root}
+          </TooltipContent>
+        </Tooltip>
         <ContextMenuContent className="w-56">
           <ContextMenuItem onSelect={() => actions.reveal(root)}>{REVEAL_LABEL}</ContextMenuItem>
           <ContextMenuItem onSelect={() => navigator.clipboard.writeText(root)}>Copy path</ContextMenuItem>
